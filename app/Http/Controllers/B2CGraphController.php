@@ -160,6 +160,49 @@ class B2CGraphController extends Controller
 
         return response()->noContent();
     }
+    /**
+     * @OA\Patch(
+     *   path="/api/admin/b2c/graph/users/{id}/password",
+     *   summary="Update a user's password profile",
+     *   tags={"Admin Directory"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\JsonContent(
+     *       type="object",
+     *       required={"passwordProfile"},
+     *       @OA\Property(
+     *         property="passwordProfile",
+     *         type="object",
+     *         required={"password","forceChangePasswordNextSignIn"},
+     *         @OA\Property(property="password", type="string", minLength=8),
+     *         @OA\Property(property="forceChangePasswordNextSignIn", type="boolean")
+     *       )
+     *     )
+     *   ),
+     *   @OA\Response(response=204, description="No Content")
+     * )
+     */
+    public function patchGraphUserPassword(string $id, Request $request)
+    {
+        $data = $request->validate([
+            'passwordProfile' => ['required', 'array'],
+            'passwordProfile.password' => ['required', 'string', 'min:8'],
+            'passwordProfile.forceChangePasswordNextSignIn' => ['required', 'boolean'],
+        ]);
+
+        $body = [
+            'passwordProfile' => [
+                'password' => $data['passwordProfile']['password'],
+                'forceChangePasswordNextSignIn' => (bool) $data['passwordProfile']['forceChangePasswordNextSignIn'],
+            ],
+        ];
+
+        $this->graph->patch('https://graph.microsoft.com/v1.0/users/' . rawurlencode($id), $body);
+
+        return response()->noContent();
+    }
 
     /**
      * @OA\Patch(
