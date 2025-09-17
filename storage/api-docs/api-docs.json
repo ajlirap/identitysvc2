@@ -1,0 +1,1272 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "IdentitySvc API",
+        "description": "Vendor-agnostic identity facade over Azure AD B2C, Auth0, Okta, or Keycloak.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "/",
+            "description": "Application base URL"
+        }
+    ],
+    "paths": {
+        "/api/auth/login": {
+            "get": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Start OIDC login",
+                "operationId": "33b4e968103a1b9265ea7346c45b3c1d",
+                "responses": {
+                    "200": {
+                        "description": "Authorize URL",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "authorize_url": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/callback": {
+            "get": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "OIDC callback (auth code exchange)",
+                "operationId": "9e77cef6c23d0c1e57c30a916d124651",
+                "parameters": [
+                    {
+                        "name": "code",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "state",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tokens"
+                    }
+                }
+            }
+        },
+        "/api/auth/refresh": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Refresh tokens",
+                "operationId": "b2eae7a8032954d25b46c7ec6f489c68",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "refresh_token"
+                                ],
+                                "properties": {
+                                    "refresh_token": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Tokens"
+                    }
+                }
+            }
+        },
+        "/api/me": {
+            "get": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Get current user profile",
+                "operationId": "9d9bc556f927575aa492a88c28fe5908",
+                "responses": {
+                    "200": {
+                        "description": "User profile"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/logout": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Logout (BFF/cleanup)",
+                "operationId": "fe8f3429cd6979b3b4517e186505f9f9",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/api/admin/b2c/openid-configuration": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Get OpenID configuration for the tenant",
+                "operationId": "55a2e028b04c7783828a47da84b6dbbc",
+                "responses": {
+                    "200": {
+                        "description": "OIDC discovery document"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Fetch Graph user by id (optional $select)",
+                "operationId": "aafb05edd0886006353506670c13ae40",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "select",
+                        "in": "query",
+                        "description": "Comma-separated $select fields",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Raw Graph user JSON"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Delete Graph user",
+                "operationId": "6248622ea882b00687e4c1e4c2013287",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Patch Graph user (pass-through)",
+                "operationId": "4f58d7639798ed7ebff8b01217169104",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Query Graph users (supports mail eq '...')",
+                "operationId": "7b60c022e8ce4df874af7bf2637b2d5a",
+                "parameters": [
+                    {
+                        "name": "mail",
+                        "in": "query",
+                        "description": "Email to filter by",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "email"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Raw Graph users list JSON"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Create Graph user (pass-through)",
+                "operationId": "2c4eb65dae62478b46620174f17a59cb",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/me/items/{id}/workbook/closeSession": {
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Close Excel workbook session for drive item",
+                "operationId": "29ef6431b45c969f47d8a5c519677ff3",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/authentication/phoneMethods": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "List user phone authentication methods",
+                "operationId": "e36e42dfa282e7c545f9c8ef7f320e21",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of phone methods"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Add a phone authentication method",
+                "operationId": "8a5e4779ffd3d425adaf8172858599aa",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "phoneNumber",
+                                    "phoneType"
+                                ],
+                                "properties": {
+                                    "phoneNumber": {
+                                        "type": "string"
+                                    },
+                                    "phoneType": {
+                                        "type": "string",
+                                        "enum": [
+                                            "mobile",
+                                            "alternateMobile",
+                                            "office"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Delete phone authentication methods (all or by methodId)",
+                "operationId": "122defc46a637606c0f642be88def7ce",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "query",
+                        "description": "Specific method id to delete",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/authentication/emailMethods": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "List user email authentication methods",
+                "operationId": "26bc8a3ae461f3e88d942f396e8cf9e3",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of email methods"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Add an email authentication method",
+                "operationId": "c1fcd4d38faba0fd4d7c48b51eb5ad8a",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "emailAddress"
+                                ],
+                                "properties": {
+                                    "emailAddress": {
+                                        "type": "string",
+                                        "format": "email"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Delete email authentication methods (all or by methodId)",
+                "operationId": "f3e8be7b16f0af40f392f769ffcdba16",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "query",
+                        "description": "Specific method id to delete",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/authentication/methods": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "List all authentication methods",
+                "operationId": "3e8467efeb2ec5e2804b793b401dfca3",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of methods"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/authentication/methods/{methodId}/resetPassword": {
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Reset password via specified auth method",
+                "operationId": "a35859695f1b5eea834d4b6d303cd474",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "newPassword": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Password reset result"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/token": {
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Get Azure AD B2C Graph access token (client credentials)",
+                "operationId": "6e5b3ac0c778b5db91eb6c77e5bd461e",
+                "responses": {
+                    "200": {
+                        "description": "Access token payload",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "access_token": {
+                                            "type": "string"
+                                        },
+                                        "token_type": {
+                                            "type": "string"
+                                        },
+                                        "expires_in": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/users": {
+            "get": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "List users (admin)",
+                "operationId": "44b85c1e3997186839ed21a597143f45",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "maximum": 200,
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of users",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/UserProfile"
+                                            }
+                                        },
+                                        "nextCursor": {
+                                            "type": "string",
+                                            "nullable": true
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Create user (admin)",
+                "operationId": "0ecc4f542a146a9fc6aa5647f66cb7e6",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "givenName": {
+                                        "type": "string"
+                                    },
+                                    "familyName": {
+                                        "type": "string"
+                                    },
+                                    "roles": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "attributes": {
+                                        "type": "object"
+                                    },
+                                    "invite": {
+                                        "type": "boolean",
+                                        "default": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserProfile"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}": {
+            "get": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Get user (admin)",
+                "operationId": "ebf2ffdc76262a0e6cc38ee22ab43980",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserProfile"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/deactivate": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Deactivate user (admin)",
+                "operationId": "1fb93cec95e4601cc13d569b57eab351",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/activate": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Activate user (admin)",
+                "operationId": "c1dbb330c5d52f15e97173ea43cba56d",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/users/validate-email": {
+            "post": {
+                "tags": [
+                    "Public"
+                ],
+                "summary": "Validate email format (public)",
+                "operationId": "e5286078065a6209b32e74485f68ca3e",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Validation result",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "validFormat": {
+                                            "type": "boolean"
+                                        },
+                                        "allowedDomain": {
+                                            "type": "boolean"
+                                        },
+                                        "mxValid": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/password-reset/start": {
+            "post": {
+                "tags": [
+                    "Public"
+                ],
+                "summary": "Start password reset (public)",
+                "operationId": "efd8f423c376eb27368d8639c7120b2b",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Accepted"
+                    }
+                }
+            }
+        },
+        "/api/admin/users/{id}/password-reset": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Admin reset password (admin)",
+                "operationId": "a4d4fb84a28935b99db75f2cb8a82080",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/users/check-active": {
+            "post": {
+                "tags": [
+                    "Public"
+                ],
+                "summary": "Public-safe eligibility check (non-enumerating)",
+                "operationId": "500146e687a4fa0a5468204d0f47beb1",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Generic eligibility without revealing account existence",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "eligible": {
+                                            "type": "boolean"
+                                        },
+                                        "validFormat": {
+                                            "type": "boolean"
+                                        },
+                                        "allowedDomain": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/users/check-active": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Admin: Check if email exists and if user is active",
+                "operationId": "92a42414efd930f2e9ea6867c2550cbb",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Exists/active and optional user",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "exists": {
+                                            "type": "boolean"
+                                        },
+                                        "active": {
+                                            "type": "boolean"
+                                        },
+                                        "user": {
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/UserProfile"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/invite": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Invite user (admin)",
+                "operationId": "20c1c92ee53bf5c7e7a7073ffffbddbd",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "givenName": {
+                                        "type": "string"
+                                    },
+                                    "familyName": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "Invitation accepted"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "UserProfile": {
+                "required": [
+                    "id",
+                    "email",
+                    "status"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email"
+                    },
+                    "givenName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "familyName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "displayName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "active",
+                            "inactive",
+                            "invited"
+                        ]
+                    },
+                    "roles": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "attributes": {
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "bearerFormat": "JWT",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Auth",
+            "description": "Auth"
+        },
+        {
+            "name": "Admin Directory",
+            "description": "Admin Directory"
+        },
+        {
+            "name": "Admin Users",
+            "description": "Admin Users"
+        },
+        {
+            "name": "Public",
+            "description": "Public"
+        }
+    ]
+}

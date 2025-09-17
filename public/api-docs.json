@@ -1,0 +1,180 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "IdentitySvc API",
+    "version": "1.0.0",
+    "description": "Vendor-agnostic identity façade over Azure AD B2C, Auth0, Okta, or Keycloak"
+  },
+  "servers": [
+    { "url": "http://localhost:8000", "description": "Local" }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "get": {
+        "summary": "Start OIDC login",
+        "responses": {
+          "200": {
+            "description": "Authorize URL",
+            "content": { "application/json": {"schema": {"type": "object", "properties": {"authorize_url": {"type": "string"}}}} }
+          }
+        }
+      }
+    },
+    "/api/auth/callback": {
+      "get": {
+        "summary": "OIDC callback (auth code exchange)",
+        "parameters": [
+          {"name": "code", "in": "query", "schema": {"type": "string"}, "required": true}
+        ],
+        "responses": {"200": {"description": "Tokens"}}
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "summary": "Refresh tokens",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"refresh_token": {"type": "string"}}, "required": ["refresh_token"]}}}},
+        "responses": {"200": {"description": "Tokens"}}
+      }
+    },
+    "/api/me": {
+      "get": {
+        "summary": "Get current user profile",
+        "security": [{"bearerAuth": []}],
+        "responses": {"200": {"description": "User profile"}, "401": {"description": "Unauthorized"}}
+      }
+    },
+    "/api/logout": {
+      "post": {"summary": "Logout (BFF/cleanup)", "responses": {"204": {"description": "No Content"}}}
+    },
+    "/api/admin/users": {
+      "get": {
+        "summary": "List users (admin)",
+        "parameters": [
+          {"name": "q", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}},
+          {"name": "cursor", "in": "query", "required": false, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "List of users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {"type": "string"},
+                          "email": {"type": "string", "format": "email"},
+                          "givenName": {"type": "string", "nullable": true},
+                          "familyName": {"type": "string", "nullable": true},
+                          "displayName": {"type": "string", "nullable": true},
+                          "status": {"type": "string", "enum": ["active", "inactive", "invited"]},
+                          "roles": {"type": "array", "items": {"type": "string"}},
+                          "attributes": {"type": "object"}
+                        },
+                        "required": ["id", "email", "status"]
+                      }
+                    },
+                    "nextCursor": {"type": ["string", "null"]}
+                  },
+                  "required": ["items"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create user (admin)",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {
+          "email": {"type": "string"},
+          "givenName": {"type": "string"},
+          "familyName": {"type": "string"},
+          "roles": {"type": "array", "items": {"type": "string"}},
+          "attributes": {"type": "object"},
+          "invite": {"type": "boolean"}
+        }, "required": ["email"]}}}},
+        "responses": {"201": {"description": "Created"}}
+      }
+    },
+    "/api/admin/users/{id}": {
+      "get": {
+        "summary": "Get user (admin)",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "User"}, "404": {"description": "Not Found"}}
+      }
+    },
+    "/api/admin/users/{id}/deactivate": {
+      "post": {
+        "summary": "Deactivate user (admin)",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"204": {"description": "No Content"}}
+      }
+    },
+    "/api/admin/users/{id}/activate": {
+      "post": {
+        "summary": "Activate user (admin)",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"204": {"description": "No Content"}}
+      }
+    },
+    "/api/admin/users/{id}/password-reset": {
+      "post": {
+        "summary": "Admin reset password (admin)",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"204": {"description": "No Content"}}
+      }
+    },
+    "/api/users/validate-email": {
+      "post": {
+        "summary": "Validate email format (public)",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}}}},
+        "responses": {"200": {"description": "Validation result"}}
+      }
+    },
+    "/api/users/password-reset/start": {
+      "post": {
+        "summary": "Start password reset (public)",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}}}},
+        "responses": {"200": {"description": "Accepted"}}
+      }
+    },
+    "/api/admin/users/invite": {
+      "post": {
+        "summary": "Invite user (admin)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {"type": "string", "format": "email"},
+                  "givenName": {"type": "string"},
+                  "familyName": {"type": "string"}
+                },
+                "required": ["email"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {"description": "Invitation accepted"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
