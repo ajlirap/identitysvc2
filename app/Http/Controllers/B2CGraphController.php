@@ -130,24 +130,31 @@ class B2CGraphController extends Controller
     /**
      * @OA\Patch(
      *   path="/api/admin/b2c/graph/users/{id}",
-     *   summary="Patch Graph user (pass-through)",
+     *   summary="Enable/Disable user account",
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\JsonContent(
+     *       type="object",
+     *       required={"accountEnable"},
+     *       @OA\Property(property="accountEnable", type="boolean", description="Set to false to disable the user")
+     *     )
+     *   ),
      *   @OA\Response(response=204, description="No Content")
      * )
      */
     public function patchGraphUser(string $id, Request $request)
     {
-        $token = $this->graph->accessToken();
-        $body = (array) $request->json()->all();
+        $request->validate([
+            'accountEnable' => ['required', 'boolean'],
+        ]);
 
-        // Normalize common typos
-        if (array_key_exists('accountEnable', $body) && !array_key_exists('accountEnabled', $body)) {
-            $body['accountEnabled'] = (bool) $body['accountEnable'];
-            unset($body['accountEnable']);
-        }
+        $token = $this->graph->accessToken();
+        $body = [
+            'accountEnabled' => $request->boolean('accountEnable'),
+        ];
 
         Http::withToken($token)
             ->patch('https://graph.microsoft.com/v1.0/users/' . rawurlencode($id), $body)
