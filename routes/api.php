@@ -21,6 +21,7 @@ Route::prefix('admin')->group(function () {
         Route::get('/b2c/graph/users/{id}', [B2CGraphController::class, 'graphUserById']);
         Route::get('/b2c/graph/users', [B2CGraphController::class, 'graphUsersByMail']);
         Route::patch('/b2c/graph/users/{id}', [B2CGraphController::class, 'patchGraphUser']);
+        Route::patch('/b2c/graph/users/{id}/identities', [B2CGraphController::class, 'patchGraphUserIdentities']);
         Route::delete('/b2c/graph/users/{id}', [B2CGraphController::class, 'deleteGraphUser']);
         Route::post('/b2c/graph/users', [B2CGraphController::class, 'createGraphUser']);
         Route::post('/b2c/graph/me/items/{id}/workbook/closeSession', [B2CGraphController::class, 'closeWorkbookSession']);

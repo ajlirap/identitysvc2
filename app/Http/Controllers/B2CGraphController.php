@@ -8,9 +8,7 @@ use App\Support\B2C\GraphClient;
 
 class B2CGraphController extends Controller
 {
-    public function __construct(private readonly GraphClient $graph)
-    {
-    }
+    public function __construct(private readonly GraphClient $graph) {}
 
     /**
      * @OA\Get(
@@ -162,6 +160,80 @@ class B2CGraphController extends Controller
 
         return response()->noContent();
     }
+
+    /**
+     * @OA\Patch(
+     *   path="/api/admin/b2c/graph/users/{id}/identities",
+     *   summary="Update identities and password profile for a user",
+     *   tags={"Admin Directory"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\JsonContent(
+     *       type="object",
+     *       required={"mail","identities","passwordProfile"},
+     *       @OA\Property(property="mail", type="string", format="email"),
+     *       @OA\Property(
+     *         property="identities",
+     *         type="array",
+     *         minItems=1,
+     *         @OA\Items(
+     *           type="object",
+     *           required={"signInType","issuer","issuerAssignedId"},
+     *           @OA\Property(property="signInType", type="string"),
+     *           @OA\Property(property="issuer", type="string"),
+     *           @OA\Property(property="issuerAssignedId", type="string", format="email")
+     *         )
+     *       ),
+     *       @OA\Property(
+     *         property="passwordProfile",
+     *         type="object",
+     *         required={"password","forceChangePasswordNextSignIn"},
+     *         @OA\Property(property="password", type="string", minLength=8),
+     *         @OA\Property(property="forceChangePasswordNextSignIn", type="boolean")
+     *       )
+     *     )
+     *   ),
+     *   @OA\Response(response=204, description="No Content")
+     * )
+     */
+    public function patchGraphUserIdentities(string $id, Request $request)
+    {
+        $data = $request->validate([
+            'mail' => ['required', 'string', 'email'],
+            'identities' => ['required', 'array', 'min:1'],
+            'identities.*' => ['array'],
+            'identities.*.signInType' => ['required', 'string'],
+            'identities.*.issuer' => ['required', 'string'],
+            'identities.*.issuerAssignedId' => ['required', 'string', 'email'],
+            'passwordProfile' => ['required', 'array'],
+            'passwordProfile.password' => ['required', 'string', 'min:8'],
+            'passwordProfile.forceChangePasswordNextSignIn' => ['required', 'boolean'],
+        ]);
+
+        $body = [
+            'mail' => $data['mail'],
+            'identities' => array_map(
+                static fn(array $identity) => [
+                    'signInType' => (string) $identity['signInType'],
+                    'issuer' => (string) $identity['issuer'],
+                    'issuerAssignedId' => (string) $identity['issuerAssignedId'],
+                ],
+                $data['identities']
+            ),
+            'passwordProfile' => [
+                'password' => $data['passwordProfile']['password'],
+                'forceChangePasswordNextSignIn' => (bool) $data['passwordProfile']['forceChangePasswordNextSignIn'],
+            ],
+        ];
+
+
+        $this->graph->patch('https://graph.microsoft.com/v1.0/users/' . rawurlencode($id), $body);
+
+        return response()->noContent();
+    }
+
 
     /**
      * @OA\Post(
