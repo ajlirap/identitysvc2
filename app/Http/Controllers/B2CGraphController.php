@@ -168,14 +168,34 @@ class B2CGraphController extends Controller
      */
     public function createGraphUser(Request $request)
     {
+        $request->validate([
+            'accountEnabled' => ['required', 'boolean'],
+            'displayName' => ['required', 'string'],
+            'givenName' => ['required', 'string'],
+            'surname' => ['required', 'string'],
+            'mailNickname' => ['required', 'string'],
+            'mail' => ['required', 'string', 'email'],
+            'passwordProfile' => ['required', 'array'],
+            'passwordProfile.forceChangePasswordNextSignIn' => ['required', 'boolean'],
+            'passwordProfile.password' => ['required', 'string'],
+            'usageLocation' => ['required', 'string', 'size:2'],
+            'extension_c1606dae4f14847a128579a35af167e_migarated' => ['required', 'string'],
+            'extension_c1606daee4f14847a128579a35af167e_customerId' => ['required', 'integer'],
+            'identities' => ['required', 'array', 'min:1'],
+            'identities.*' => ['array'],
+            'identities.*.signInType' => ['required', 'string'],
+            'identities.*.issuer' => ['required', 'string'],
+            'identities.*.issuerAssignedId' => ['required', 'string'],
+        ]);
+
         $token = $this->graph->accessToken();
         $body = (array) $request->json()->all();
         $resp = Http::withToken($token)
             ->post('https://graph.microsoft.com/v1.0/users', $body)
             ->throw();
+
         return response()->json($resp->json(), 201);
     }
-
     /**
      * @OA\Post(
      *   path="/api/admin/b2c/graph/me/items/{id}/workbook/closeSession",
