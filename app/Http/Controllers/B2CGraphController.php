@@ -206,6 +206,61 @@ class B2CGraphController extends Controller
 
     /**
      * @OA\Patch(
+     *   path="/api/admin/b2c/graph/users/{id}/email-identity",
+     *   summary="Update a user's email sign-in identity",
+     *   tags={"Admin Directory"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\JsonContent(
+     *       type="object",
+     *       required={"identities"},
+     *       @OA\Property(
+     *         property="identities",
+     *         type="array",
+     *         minItems=1,
+     *         @OA\Items(
+     *           type="object",
+     *           required={"signInType","issuer","issuerAssignedId"},
+     *           @OA\Property(property="signInType", type="string", example="emailAddress"),
+     *           @OA\Property(property="issuer", type="string"),
+     *           @OA\Property(property="issuerAssignedId", type="string", format="email")
+     *         )
+     *       )
+     *     )
+     *   ),
+     *   @OA\Response(response=204, description="No Content")
+     * )
+     */
+    public function patchGraphUserEmailIdentity(string $id, Request $request)
+    {
+        $data = $request->validate([
+            'identities' => ['required', 'array', 'min:1'],
+            'identities.*' => ['array'],
+            'identities.*.signInType' => ['required', 'string'],
+            'identities.*.issuer' => ['required', 'string'],
+            'identities.*.issuerAssignedId' => ['required', 'string', 'email'],
+        ]);
+
+        $body = [
+            'identities' => array_map(
+                static fn(array $identity) => [
+                    'signInType' => (string) $identity['signInType'],
+                    'issuer' => (string) $identity['issuer'],
+                    'issuerAssignedId' => (string) $identity['issuerAssignedId'],
+                ],
+                $data['identities']
+            ),
+        ];
+
+        $this->graph->patch('https://graph.microsoft.com/v1.0/users/' . rawurlencode($id), $body);
+
+        return response()->noContent();
+    }
+
+    /**
+     * @OA\Patch(
      *   path="/api/admin/b2c/graph/users/{id}/identities",
      *   summary="Update identities and password profile for a user",
      *   tags={"Admin Directory"},
