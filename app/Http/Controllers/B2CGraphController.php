@@ -162,7 +162,41 @@ class B2CGraphController extends Controller
      *   summary="Create Graph user (pass-through)",
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
-     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\JsonContent(
+     *       type="object",
+     *       required={"accountEnabled","displayName","givenName","surname","mailNickname","mail","passwordProfile","usageLocation","extension_c1606dae4f14847a128579a35af167e_migarated","extension_c1606daee4f14847a128579a35af167e_customerId","identities"},
+     *       @OA\Property(property="accountEnabled", type="boolean"),
+     *       @OA\Property(property="displayName", type="string"),
+     *       @OA\Property(property="givenName", type="string"),
+     *       @OA\Property(property="surname", type="string"),
+     *       @OA\Property(property="mailNickname", type="string"),
+     *       @OA\Property(property="mail", type="string", format="email"),
+     *       @OA\Property(
+     *         property="passwordProfile",
+     *         type="object",
+     *         required={"forceChangePasswordNextSignIn","password"},
+     *         @OA\Property(property="forceChangePasswordNextSignIn", type="boolean"),
+     *         @OA\Property(property="password", type="string"),
+     *       ),
+     *       @OA\Property(property="usageLocation", type="string", minLength=2, maxLength=2),
+     *       @OA\Property(property="extension_c1606dae4f14847a128579a35af167e_migarated", type="string"),
+     *       @OA\Property(property="extension_c1606daee4f14847a128579a35af167e_customerId", type="integer"),
+     *       @OA\Property(
+     *         property="identities",
+     *         type="array",
+     *         minItems=1,
+     *         @OA\Items(
+     *           type="object",
+     *           required={"signInType","issuer","issuerAssignedId"},
+     *           @OA\Property(property="signInType", type="string"),
+     *           @OA\Property(property="issuer", type="string"),
+     *           @OA\Property(property="issuerAssignedId", type="string"),
+     *         )
+     *       )
+     *     )
+     *   ),
      *   @OA\Response(response=201, description="Created")
      * )
      */
