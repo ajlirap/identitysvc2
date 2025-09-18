@@ -5,6 +5,7 @@ namespace App\Providers\Adapters\Keycloak;
 use App\Contracts\UserDirectoryProvider;
 use App\DTO\UserCreateRequest;
 use App\DTO\UserProfile;
+use Illuminate\Support\Facades\Http;
 
 class KeycloakUserDirectoryProvider implements UserDirectoryProvider
 {
@@ -12,15 +13,15 @@ class KeycloakUserDirectoryProvider implements UserDirectoryProvider
     {
         $base = rtrim((string) config('identity.keycloak.base_url'), '/');
         $realm = rawurlencode((string) config('identity.keycloak.realm'));
-        return $base.'/admin/realms/'.$realm;
+        return $base . '/admin/realms/' . $realm;
     }
 
     private function adminToken(): string
     {
         $base = rtrim((string) config('identity.keycloak.base_url'), '/');
         $realm = rawurlencode((string) config('identity.keycloak.realm'));
-        $resp = \Illuminate\Support\Facades\Http::asForm()
-            ->post($base.'/realms/'.$realm.'/protocol/openid-connect/token', [
+        $resp = Http::asForm()
+            ->post($base . '/realms/' . $realm . '/protocol/openid-connect/token', [
                 'grant_type' => 'client_credentials',
                 'client_id' => (string) config('identity.keycloak.client_id'),
                 'client_secret' => (string) config('identity.keycloak.client_secret'),
@@ -30,77 +31,91 @@ class KeycloakUserDirectoryProvider implements UserDirectoryProvider
 
     public function create(UserCreateRequest $req): UserProfile
     {
-        $t = $this->adminToken();
+        $token = $this->adminToken();
         $body = [
-            'enabled' => !$req->invite,
+            'enabled' => $req->isEnable,
             'username' => $req->email,
             'email' => $req->email,
-            'firstName' => $req->givenName,
-            'lastName' => $req->familyName,
+            'firstName' => $req->firstName,
+            'lastName' => $req->lastName,
             'emailVerified' => false,
+            'attributes' => [
+                'customerId' => [$req->customerId],
+            ],
         ];
-        $res = \Illuminate\Support\Facades\Http::withToken($t)
-            ->post($this->adminBase().'/users', $body)
+
+        $response = Http::withToken($token)
+            ->post($this->adminBase() . '/users', $body)
             ->throw();
 
-        $loc = $res->header('Location');
-        $id = $loc ? basename($loc) : '';
+        $location = $response->header('Location');
+        $id = $location ? basename($location) : '';
 
         return new UserProfile(
             id: $id,
             email: $req->email,
-            displayName: trim(($req->givenName.' '.$req->familyName) ?: $req->email),
-            status: $req->invite ? 'invited' : 'active',
-            attributes: ['location' => $loc],
+            givenName: $req->firstName,
+            familyName: $req->lastName,
+            displayName: trim(($req->firstName . ' ' . $req->lastName) ?: $req->email),
+            status: $req->isEnable ? 'active' : 'inactive',
+            roles: [],
+            attributes: [
+                'customerId' => $req->customerId,
+                'location' => $location,
+            ],
         );
     }
 
     public function findById(string $id): ?UserProfile
     {
-        $t = $this->adminToken();
-        $u = \Illuminate\Support\Facades\Http::withToken($t)
-            ->get($this->adminBase().'/users/'.rawurlencode($id))
+        $token = $this->adminToken();
+        $user = Http::withToken($token)
+            ->get($this->adminBase() . '/users/' . rawurlencode($id))
             ->throw()->json();
-        if (!$u || !isset($u['id'])) return null;
-        return new UserProfile(
-            id: (string) $u['id'],
-            email: (string) ($u['email'] ?? ''),
-            displayName: (string) (($u['firstName'] ?? '').' '.($u['lastName'] ?? '')),
-            status: ($u['enabled'] ?? true) ? 'active' : 'inactive',
-            attributes: ['raw' => $u],
-        );
+
+        if (!$user || !isset($user['id'])) {
+            return null;
+        }
+
+        return $this->mapUser($user);
     }
 
     public function findByEmail(string $email): ?UserProfile
     {
-        $t = $this->adminToken();
-        $res = \Illuminate\Support\Facades\Http::withToken($t)
-            ->get($this->adminBase().'/users?email='.rawurlencode($email))
+        $token = $this->adminToken();
+        $res = Http::withToken($token)
+            ->get($this->adminBase() . '/users?email=' . rawurlencode($email))
             ->throw()->json();
-        $u = $res[0] ?? null;
-        if (!$u) return null;
-        return new UserProfile(
-            id: (string) $u['id'],
-            email: (string) ($u['email'] ?? ''),
-            displayName: (string) (($u['firstName'] ?? '').' '.($u['lastName'] ?? '')),
-            status: ($u['enabled'] ?? true) ? 'active' : 'inactive',
-            attributes: ['raw' => $u],
-        );
+
+        $user = $res[0] ?? null;
+        if (!$user) {
+            return null;
+        }
+
+        return $this->mapUser($user);
     }
 
     public function deactivate(string $id): void
     {
-        $t = $this->adminToken();
-        \Illuminate\Support\Facades\Http::withToken($t)
-            ->put($this->adminBase().'/users/'.rawurlencode($id), [ 'enabled' => false ])
+        $token = $this->adminToken();
+        Http::withToken($token)
+            ->put($this->adminBase() . '/users/' . rawurlencode($id), ['enabled' => false])
             ->throw();
     }
 
     public function activate(string $id): void
     {
-        $t = $this->adminToken();
-        \Illuminate\Support\Facades\Http::withToken($t)
-            ->put($this->adminBase().'/users/'.rawurlencode($id), [ 'enabled' => true ])
+        $token = $this->adminToken();
+        Http::withToken($token)
+            ->put($this->adminBase() . '/users/' . rawurlencode($id), ['enabled' => true])
+            ->throw();
+    }
+
+    public function delete(string $id): void
+    {
+        $token = $this->adminToken();
+        Http::withToken($token)
+            ->delete($this->adminBase() . '/users/' . rawurlencode($id))
             ->throw();
     }
 
@@ -111,18 +126,18 @@ class KeycloakUserDirectoryProvider implements UserDirectoryProvider
 
     public function adminResetPassword(string $id): void
     {
-        $t = $this->adminToken();
-        \Illuminate\Support\Facades\Http::withToken($t)
-            ->put($this->adminBase().'/users/'.rawurlencode($id).'/reset-password', [
+        $token = $this->adminToken();
+        Http::withToken($token)
+            ->put($this->adminBase() . '/users/' . rawurlencode($id) . '/reset-password', [
                 'type' => 'password',
-                'value' => bin2hex(random_bytes(8)).'!Aa1',
+                'value' => bin2hex(random_bytes(8)) . '!Aa1',
                 'temporary' => true,
             ])->throw();
     }
 
     public function listUsers(?string $query = null, int $limit = 50, ?string $cursor = null): array
     {
-        $t = $this->adminToken();
+        $token = $this->adminToken();
         $first = is_numeric($cursor ?? '') ? max(0, (int) $cursor) : 0;
         $params = [
             'first' => $first,
@@ -132,23 +147,43 @@ class KeycloakUserDirectoryProvider implements UserDirectoryProvider
             $params['search'] = $query;
         }
 
-        $res = \Illuminate\Support\Facades\Http::withToken($t)
-            ->get($this->adminBase().'/users', $params)
+        $res = Http::withToken($token)
+            ->get($this->adminBase() . '/users', $params)
             ->throw()->json();
 
         $items = [];
-        foreach (($res ?? []) as $u) {
-            if (!is_array($u)) continue;
-            $items[] = new UserProfile(
-                id: (string) ($u['id'] ?? ''),
-                email: (string) ($u['email'] ?? ''),
-                displayName: (string) ((($u['firstName'] ?? '')).' '.($u['lastName'] ?? '')),
-                status: ($u['enabled'] ?? true) ? 'active' : 'inactive',
-                attributes: ['raw' => $u],
-            );
+        foreach (($res ?? []) as $user) {
+            if (!is_array($user)) {
+                continue;
+            }
+            $items[] = $this->mapUser($user);
         }
 
-        $nextCursor = (count($items) >= ($params['max'] ?? 50)) ? (string)($first + ($params['max'] ?? 50)) : null;
-        return [ 'items' => $items, 'nextCursor' => $nextCursor ];
+        $nextCursor = (count($items) >= ($params['max'] ?? 50)) ? (string) ($first + ($params['max'] ?? 50)) : null;
+        return ['items' => $items, 'nextCursor' => $nextCursor];
+    }
+
+    private function mapUser(array $user): UserProfile
+    {
+        $attributes = (array) ($user['attributes'] ?? []);
+        $firstName = (string) ($user['firstName'] ?? '');
+        $lastName = (string) ($user['lastName'] ?? '');
+        $email = (string) ($user['email'] ?? '');
+        $enabled = (bool) ($user['enabled'] ?? true);
+
+        return new UserProfile(
+            id: (string) ($user['id'] ?? ''),
+            email: $email,
+            givenName: $firstName !== '' ? $firstName : null,
+            familyName: $lastName !== '' ? $lastName : null,
+            displayName: trim(($firstName . ' ' . $lastName) ?: $email),
+            status: $enabled ? 'active' : 'inactive',
+            roles: [],
+            attributes: [
+                'customerId' => $attributes['customerId'][0] ?? null,
+                'raw' => $user,
+            ],
+        );
     }
 }
+

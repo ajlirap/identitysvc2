@@ -12,6 +12,7 @@ interface UserDirectoryProvider
     public function findByEmail(string $email): ?UserProfile; // admin-only usage
     public function deactivate(string $id): void;
     public function activate(string $id): void;
+    public function delete(string $id): void;
     public function startPasswordResetPublic(string $emailOrLogin): void; // hosted reset link flow
     public function adminResetPassword(string $id): void; // force change on next login
     /**

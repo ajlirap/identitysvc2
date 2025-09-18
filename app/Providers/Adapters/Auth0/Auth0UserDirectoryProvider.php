@@ -5,13 +5,14 @@ namespace App\Providers\Adapters\Auth0;
 use App\Contracts\UserDirectoryProvider;
 use App\DTO\UserCreateRequest;
 use App\DTO\UserProfile;
+use Illuminate\Support\Facades\Http;
 
 class Auth0UserDirectoryProvider implements UserDirectoryProvider
 {
     private function mgmtToken(): string
     {
         $domain = rtrim((string) config('identity.auth0.domain'), '/');
-        $resp = \Illuminate\Support\Facades\Http::asForm()
+        $resp = Http::asForm()
             ->post("https://{$domain}/oauth/token", [
                 'grant_type' => 'client_credentials',
                 'client_id' => (string) config('identity.auth0.mgmt_client_id'),
@@ -23,78 +24,84 @@ class Auth0UserDirectoryProvider implements UserDirectoryProvider
 
     public function create(UserCreateRequest $req): UserProfile
     {
-        $t = $this->mgmtToken();
-        $body = [
-            'email' => $req->email,
-            'name' => trim(($req->givenName.' '.$req->familyName) ?: $req->email),
+        $token = $this->mgmtToken();
+        $email = mb_strtolower($req->email);
+        $name = trim(($req->firstName . ' ' . $req->lastName) ?: $email);
+
+        $payload = [
+            'email' => $email,
+            'name' => $name,
+            'given_name' => $req->firstName,
+            'family_name' => $req->lastName,
             'connection' => 'Username-Password-Authentication',
             'verify_email' => false,
+            'blocked' => !$req->isEnable,
+            'user_metadata' => [
+                'customerId' => $req->customerId,
+            ],
+            'password' => bin2hex(random_bytes(8)) . '!Aa1',
         ];
-        if (!$req->invite) {
-            $body['password'] = bin2hex(random_bytes(8)).'!Aa1';
-        }
-        $res = \Illuminate\Support\Facades\Http::withToken($t)
-            ->post("https://".rtrim((string) config('identity.auth0.domain'), '/')."/api/v2/users", $body)
+
+        $res = Http::withToken($token)
+            ->post('https://' . rtrim((string) config('identity.auth0.domain'), '/') . '/api/v2/users', $payload)
             ->throw()->json();
 
-        return new UserProfile(
-            id: (string) $res['user_id'],
-            email: (string) $res['email'],
-            displayName: (string) ($res['name'] ?? $res['email']),
-            status: $req->invite ? 'invited' : 'active',
-            attributes: ['raw' => $res],
-        );
+        return $this->mapUser($res);
     }
 
     public function findById(string $id): ?UserProfile
     {
-        $t = $this->mgmtToken();
-        $res = \Illuminate\Support\Facades\Http::withToken($t)
-            ->get("https://".rtrim((string) config('identity.auth0.domain'), '/')."/api/v2/users/".rawurlencode($id))
+        $token = $this->mgmtToken();
+        $res = Http::withToken($token)
+            ->get('https://' . rtrim((string) config('identity.auth0.domain'), '/') . '/api/v2/users/' . rawurlencode($id))
             ->throw()->json();
-        if (!$res || !isset($res['user_id'])) return null;
-        return new UserProfile(
-            id: (string) $res['user_id'],
-            email: (string) ($res['email'] ?? ''),
-            displayName: (string) ($res['name'] ?? ($res['email'] ?? '')),
-            status: ($res['blocked'] ?? false) ? 'inactive' : 'active',
-            attributes: ['raw' => $res],
-        );
+
+        if (!$res || !isset($res['user_id'])) {
+            return null;
+        }
+
+        return $this->mapUser($res);
     }
 
     public function findByEmail(string $email): ?UserProfile
     {
-        $t = $this->mgmtToken();
-        $res = \Illuminate\Support\Facades\Http::withToken($t)
-            ->get("https://".rtrim((string) config('identity.auth0.domain'), '/')."/api/v2/users-by-email?email=".rawurlencode($email))
+        $token = $this->mgmtToken();
+        $res = Http::withToken($token)
+            ->get('https://' . rtrim((string) config('identity.auth0.domain'), '/') . '/api/v2/users-by-email?email=' . rawurlencode($email))
             ->throw()->json();
-        $u = $res[0] ?? null;
-        if (!$u) return null;
-        return new UserProfile(
-            id: (string) $u['user_id'],
-            email: (string) ($u['email'] ?? ''),
-            displayName: (string) ($u['name'] ?? ($u['email'] ?? '')),
-            status: ($u['blocked'] ?? false) ? 'inactive' : 'active',
-            attributes: ['raw' => $u],
-        );
+
+        $user = $res[0] ?? null;
+        if (!$user) {
+            return null;
+        }
+
+        return $this->mapUser($user);
     }
 
     public function deactivate(string $id): void
     {
-        $t = $this->mgmtToken();
-        \Illuminate\Support\Facades\Http::withToken($t)
-            ->patch("https://".rtrim((string) config('identity.auth0.domain'), '/')."/api/v2/users/".rawurlencode($id), [
+        $token = $this->mgmtToken();
+        Http::withToken($token)
+            ->patch('https://' . rtrim((string) config('identity.auth0.domain'), '/') . '/api/v2/users/' . rawurlencode($id), [
                 'blocked' => true,
             ])->throw();
     }
 
     public function activate(string $id): void
     {
-        $t = $this->mgmtToken();
-        \Illuminate\Support\Facades\Http::withToken($t)
-            ->patch("https://".rtrim((string) config('identity.auth0.domain'), '/')."/api/v2/users/".rawurlencode($id), [
+        $token = $this->mgmtToken();
+        Http::withToken($token)
+            ->patch('https://' . rtrim((string) config('identity.auth0.domain'), '/') . '/api/v2/users/' . rawurlencode($id), [
                 'blocked' => false,
             ])->throw();
+    }
+
+    public function delete(string $id): void
+    {
+        $token = $this->mgmtToken();
+        Http::withToken($token)
+            ->delete('https://' . rtrim((string) config('identity.auth0.domain'), '/') . '/api/v2/users/' . rawurlencode($id))
+            ->throw();
     }
 
     public function startPasswordResetPublic(string $emailOrLogin): void
@@ -104,16 +111,16 @@ class Auth0UserDirectoryProvider implements UserDirectoryProvider
 
     public function adminResetPassword(string $id): void
     {
-        $t = $this->mgmtToken();
-        \Illuminate\Support\Facades\Http::withToken($t)
-            ->post("https://".rtrim((string) config('identity.auth0.domain'), '/')."/api/v2/tickets/password-change", [
+        $token = $this->mgmtToken();
+        Http::withToken($token)
+            ->post('https://' . rtrim((string) config('identity.auth0.domain'), '/') . '/api/v2/tickets/password-change', [
                 'user_id' => $id,
             ])->throw();
     }
 
     public function listUsers(?string $query = null, int $limit = 50, ?string $cursor = null): array
     {
-        $t = $this->mgmtToken();
+        $token = $this->mgmtToken();
         $page = is_numeric($cursor ?? '') ? (int) $cursor : 0;
         $params = [
             'per_page' => max(1, min(100, $limit)),
@@ -124,23 +131,44 @@ class Auth0UserDirectoryProvider implements UserDirectoryProvider
             $params['search_engine'] = 'v3';
         }
 
-        $res = \Illuminate\Support\Facades\Http::withToken($t)
-            ->get("https://".rtrim((string) config('identity.auth0.domain'), '/')."/api/v2/users", $params)
+        $res = Http::withToken($token)
+            ->get('https://' . rtrim((string) config('identity.auth0.domain'), '/') . '/api/v2/users', $params)
             ->throw()->json();
 
         $items = [];
-        foreach (($res ?? []) as $u) {
-            if (!is_array($u)) continue;
-            $items[] = new UserProfile(
-                id: (string) ($u['user_id'] ?? ''),
-                email: (string) ($u['email'] ?? ''),
-                displayName: (string) ($u['name'] ?? ($u['email'] ?? '')),
-                status: ($u['blocked'] ?? false) ? 'inactive' : 'active',
-                attributes: ['raw' => $u],
-            );
+        foreach (($res ?? []) as $user) {
+            if (!is_array($user)) {
+                continue;
+            }
+            $items[] = $this->mapUser($user);
         }
 
-        $nextCursor = (count($items) >= ($params['per_page'] ?? 50)) ? (string)($page + 1) : null;
-        return [ 'items' => $items, 'nextCursor' => $nextCursor ];
+        $nextCursor = (count($items) >= ($params['per_page'] ?? 50)) ? (string) ($page + 1) : null;
+        return ['items' => $items, 'nextCursor' => $nextCursor];
+    }
+
+    private function mapUser(array $data): UserProfile
+    {
+        $email = (string) ($data['email'] ?? '');
+        $given = (string) ($data['given_name'] ?? null);
+        $family = (string) ($data['family_name'] ?? null);
+        $name = (string) ($data['name'] ?? trim(($given . ' ' . $family) ?: $email));
+        $blocked = (bool) ($data['blocked'] ?? false);
+        $metadata = (array) ($data['user_metadata'] ?? []);
+
+        return new UserProfile(
+            id: (string) ($data['user_id'] ?? ''),
+            email: $email,
+            givenName: $given !== '' ? $given : null,
+            familyName: $family !== '' ? $family : null,
+            displayName: $name,
+            status: $blocked ? 'inactive' : 'active',
+            roles: [],
+            attributes: [
+                'customerId' => $metadata['customerId'] ?? null,
+                'raw' => $data,
+            ],
+        );
     }
 }
+

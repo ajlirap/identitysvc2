@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\SupportsUserAuthenticationMethods;
+use App\Contracts\SupportsUserIdentityManagement;
 use App\DTO\UserCreateRequest;
 use App\Support\ProviderFactory;
 use App\Support\InvitationService;
@@ -48,13 +50,12 @@ class UsersController extends Controller
      *   @OA\RequestBody(
      *     required=true,
      *     @OA\JsonContent(type="object",
-     *       required={"email"},
+     *       required={"customerId","firstName","lastName","email"},
+     *       @OA\Property(property="customerId", type="string"),
+     *       @OA\Property(property="firstName", type="string"),
+     *       @OA\Property(property="lastName", type="string"),
      *       @OA\Property(property="email", type="string", format="email"),
-     *       @OA\Property(property="givenName", type="string"),
-     *       @OA\Property(property="familyName", type="string"),
-     *       @OA\Property(property="roles", type="array", @OA\Items(type="string")),
-     *       @OA\Property(property="attributes", type="object"),
-     *       @OA\Property(property="invite", type="boolean", default=true)
+     *       @OA\Property(property="isEnable", type="boolean", default=true)
      *     )
      *   ),
      *   @OA\Response(response=201, description="Created", @OA\JsonContent(ref="#/components/schemas/UserProfile"))
@@ -62,18 +63,25 @@ class UsersController extends Controller
      */
     public function create(Request $request)
     {
+        $data = $request->validate([
+            'customerId' => ['required', 'string'],
+            'firstName' => ['required', 'string'],
+            'lastName' => ['required', 'string'],
+            'email' => ['required', 'string', 'email'],
+            'isEnable' => ['sometimes', 'boolean'],
+        ]);
+
         $dto = new UserCreateRequest(
-            email: (string) $request->string('email'),
-            givenName: $request->string('givenName'),
-            familyName: $request->string('familyName'),
-            roles: (array) $request->input('roles', []),
-            attributes: (array) $request->input('attributes', []),
-            invite: (bool) $request->boolean('invite', true),
+            customerId: (string) $data['customerId'],
+            firstName: (string) $data['firstName'],
+            lastName: (string) $data['lastName'],
+            email: mb_strtolower((string) $data['email']),
+            isEnable: array_key_exists('isEnable', $data) ? (bool) $data['isEnable'] : true,
         );
+
         $user = ProviderFactory::directory()->create($dto);
         return response()->json($user, 201);
     }
-
     /**
      * @OA\Get(
      *   path="/api/admin/users/{id}",
@@ -212,6 +220,353 @@ class UsersController extends Controller
     {
         ProviderFactory::directory()->adminResetPassword($id);
         return response()->noContent();
+    }
+
+    /**
+     * @OA\Delete(
+     *   path="/api/admin/users/{id}",
+     *   summary="Delete user (admin)",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\Response(response=204, description="No Content")
+     * )
+     */
+    public function delete(string $id)
+    {
+        ProviderFactory::directory()->delete($id);
+        return response()->noContent();
+    }
+
+    /**
+     * @OA\Patch(
+     *   path="/api/admin/users/{id}/password",
+     *   summary="Update a user's password profile",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"passwordProfile"},
+     *     @OA\Property(
+     *       property="passwordProfile",
+     *       type="object",
+     *       required={"password"},
+     *       @OA\Property(property="password", type="string", minLength=8),
+     *       @OA\Property(property="forceChangePasswordNextSignIn", type="boolean")
+     *     )
+     *   )),
+     *   @OA\Response(response=204, description="No Content"),
+     *   @OA\Response(response=501, description="Not Implemented")
+     * )
+     */
+    public function updatePasswordProfile(string $id, Request $request)
+    {
+        $data = $request->validate([
+            'passwordProfile' => ['required', 'array'],
+            'passwordProfile.password' => ['required', 'string', 'min:8'],
+            'passwordProfile.forceChangePasswordNextSignIn' => ['sometimes', 'boolean'],
+        ]);
+
+        $provider = ProviderFactory::directory();
+        if (!$provider instanceof SupportsUserIdentityManagement) {
+            return $this->notSupportedResponse('user_identity_management');
+        }
+
+        $provider->updatePasswordProfile($id, $data['passwordProfile']);
+        return response()->noContent();
+    }
+
+    /**
+     * @OA\Patch(
+     *   path="/api/admin/users/{id}/email-identity",
+     *   summary="Replace email sign-in identities",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"identities"},
+     *     @OA\Property(property="identities", type="array", minItems=1, @OA\Items(type="object",
+     *       required={"signInType","issuer","issuerAssignedId"},
+     *       @OA\Property(property="signInType", type="string"),
+     *       @OA\Property(property="issuer", type="string"),
+     *       @OA\Property(property="issuerAssignedId", type="string", format="email")
+     *     ))
+     *   )),
+     *   @OA\Response(response=204, description="No Content"),
+     *   @OA\Response(response=501, description="Not Implemented")
+     * )
+     */
+    public function updateEmailIdentity(string $id, Request $request)
+    {
+        $data = $request->validate([
+            'identities' => ['required', 'array', 'min:1'],
+            'identities.*' => ['array'],
+            'identities.*.signInType' => ['required', 'string'],
+            'identities.*.issuer' => ['required', 'string'],
+            'identities.*.issuerAssignedId' => ['required', 'string', 'email'],
+        ]);
+
+        $provider = ProviderFactory::directory();
+        if (!$provider instanceof SupportsUserIdentityManagement) {
+            return $this->notSupportedResponse('user_identity_management');
+        }
+
+        $provider->updateEmailIdentities($id, $data['identities']);
+        return response()->noContent();
+    }
+
+    /**
+     * @OA\Patch(
+     *   path="/api/admin/users/{id}/identities",
+     *   summary="Replace identities and password profile",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"mail","identities","passwordProfile"},
+     *     @OA\Property(property="mail", type="string", format="email"),
+     *     @OA\Property(property="identities", type="array", minItems=1, @OA\Items(type="object",
+     *       required={"signInType","issuer","issuerAssignedId"},
+     *       @OA\Property(property="signInType", type="string"),
+     *       @OA\Property(property="issuer", type="string"),
+     *       @OA\Property(property="issuerAssignedId", type="string", format="email")
+     *     )),
+     *     @OA\Property(property="passwordProfile", type="object", required={"password"},
+     *       @OA\Property(property="password", type="string"),
+     *       @OA\Property(property="forceChangePasswordNextSignIn", type="boolean")
+     *     )
+     *   )),
+     *   @OA\Response(response=204, description="No Content"),
+     *   @OA\Response(response=501, description="Not Implemented")
+     * )
+     */
+    public function updateIdentities(string $id, Request $request)
+    {
+        $data = $request->validate([
+            'mail' => ['required', 'string', 'email'],
+            'identities' => ['required', 'array', 'min:1'],
+            'identities.*' => ['array'],
+            'identities.*.signInType' => ['required', 'string'],
+            'identities.*.issuer' => ['required', 'string'],
+            'identities.*.issuerAssignedId' => ['required', 'string', 'email'],
+            'passwordProfile' => ['required', 'array'],
+            'passwordProfile.password' => ['required', 'string', 'min:8'],
+            'passwordProfile.forceChangePasswordNextSignIn' => ['sometimes', 'boolean'],
+        ]);
+
+        $provider = ProviderFactory::directory();
+        if (!$provider instanceof SupportsUserIdentityManagement) {
+            return $this->notSupportedResponse('user_identity_management');
+        }
+
+        $provider->updateIdentities($id, $data['mail'], $data['identities'], $data['passwordProfile']);
+        return response()->noContent();
+    }
+
+    /**
+     * @OA\Get(
+     *   path="/api/admin/users/{id}/authentication/phone-methods",
+     *   summary="List phone authentication methods",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\Response(response=200, description="Phone methods"),
+     *   @OA\Response(response=501, description="Not Implemented")
+     * )
+     */
+    public function listPhoneMethods(string $id)
+    {
+        $provider = ProviderFactory::directory();
+        if (!$provider instanceof SupportsUserAuthenticationMethods) {
+            return $this->notSupportedResponse('user_authentication_methods');
+        }
+
+        return response()->json($provider->listPhoneMethods($id));
+    }
+
+    /**
+     * @OA\Post(
+     *   path="/api/admin/users/{id}/authentication/phone-methods",
+     *   summary="Add phone authentication method",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"phoneNumber","phoneType"},
+     *     @OA\Property(property="phoneNumber", type="string"),
+     *     @OA\Property(property="phoneType", type="string", enum={"mobile","alternateMobile","office"})
+     *   )),
+     *   @OA\Response(response=201, description="Created"),
+     *   @OA\Response(response=501, description="Not Implemented")
+     * )
+     */
+    public function addPhoneMethod(string $id, Request $request)
+    {
+        $data = $request->validate([
+            'phoneNumber' => ['required', 'string'],
+            'phoneType' => ['required', 'string'],
+        ]);
+
+        $provider = ProviderFactory::directory();
+        if (!$provider instanceof SupportsUserAuthenticationMethods) {
+            return $this->notSupportedResponse('user_authentication_methods');
+        }
+
+        $result = $provider->addPhoneMethod($id, $data);
+        return response()->json($result, 201);
+    }
+
+    /**
+     * @OA\Delete(
+     *   path="/api/admin/users/{id}/authentication/phone-methods",
+     *   summary="Delete phone authentication methods",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\Parameter(name="methodId", in="query", required=false, @OA\Schema(type="string")),
+     *   @OA\Response(response=204, description="No Content"),
+     *   @OA\Response(response=501, description="Not Implemented")
+     * )
+     */
+    public function deletePhoneMethods(string $id, Request $request)
+    {
+        $provider = ProviderFactory::directory();
+        if (!$provider instanceof SupportsUserAuthenticationMethods) {
+            return $this->notSupportedResponse('user_authentication_methods');
+        }
+
+        $methodId = trim((string) $request->query('methodId', ''));
+        $provider->deletePhoneMethods($id, $methodId !== '' ? $methodId : null);
+        return response()->noContent();
+    }
+
+    /**
+     * @OA\Get(
+     *   path="/api/admin/users/{id}/authentication/email-methods",
+     *   summary="List email authentication methods",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\Response(response=200, description="Email methods"),
+     *   @OA\Response(response=501, description="Not Implemented")
+     * )
+     */
+    public function listEmailMethods(string $id)
+    {
+        $provider = ProviderFactory::directory();
+        if (!$provider instanceof SupportsUserAuthenticationMethods) {
+            return $this->notSupportedResponse('user_authentication_methods');
+        }
+
+        return response()->json($provider->listEmailMethods($id));
+    }
+
+    /**
+     * @OA\Post(
+     *   path="/api/admin/users/{id}/authentication/email-methods",
+     *   summary="Add email authentication method",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"emailAddress"},
+     *     @OA\Property(property="emailAddress", type="string", format="email")
+     *   )),
+     *   @OA\Response(response=201, description="Created"),
+     *   @OA\Response(response=501, description="Not Implemented")
+     * )
+     */
+    public function addEmailMethod(string $id, Request $request)
+    {
+        $data = $request->validate([
+            'emailAddress' => ['required', 'string', 'email'],
+        ]);
+
+        $provider = ProviderFactory::directory();
+        if (!$provider instanceof SupportsUserAuthenticationMethods) {
+            return $this->notSupportedResponse('user_authentication_methods');
+        }
+
+        $result = $provider->addEmailMethod($id, $data);
+        return response()->json($result, 201);
+    }
+
+    /**
+     * @OA\Delete(
+     *   path="/api/admin/users/{id}/authentication/email-methods",
+     *   summary="Delete email authentication methods",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\Parameter(name="methodId", in="query", required=false, @OA\Schema(type="string")),
+     *   @OA\Response(response=204, description="No Content"),
+     *   @OA\Response(response=501, description="Not Implemented")
+     * )
+     */
+    public function deleteEmailMethods(string $id, Request $request)
+    {
+        $provider = ProviderFactory::directory();
+        if (!$provider instanceof SupportsUserAuthenticationMethods) {
+            return $this->notSupportedResponse('user_authentication_methods');
+        }
+
+        $methodId = trim((string) $request->query('methodId', ''));
+        $provider->deleteEmailMethods($id, $methodId !== '' ? $methodId : null);
+        return response()->noContent();
+    }
+
+    /**
+     * @OA\Get(
+     *   path="/api/admin/users/{id}/authentication/methods",
+     *   summary="List authentication methods",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\Response(response=200, description="Authentication methods"),
+     *   @OA\Response(response=501, description="Not Implemented")
+     * )
+     */
+    public function listAuthMethods(string $id)
+    {
+        $provider = ProviderFactory::directory();
+        if (!$provider instanceof SupportsUserAuthenticationMethods) {
+            return $this->notSupportedResponse('user_authentication_methods');
+        }
+
+        return response()->json($provider->listAuthenticationMethods($id));
+    }
+
+    /**
+     * @OA\Post(
+     *   path="/api/admin/users/{id}/authentication/methods/{methodId}/reset-password",
+     *   summary="Reset password via authentication method",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\Parameter(name="methodId", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\RequestBody(required=false, @OA\JsonContent(type="object", @OA\Property(property="newPassword", type="string", minLength=8))),
+     *   @OA\Response(response=200, description="Password reset result"),
+     *   @OA\Response(response=501, description="Not Implemented")
+     * )
+     */
+    public function resetAuthMethodPassword(string $id, string $methodId, Request $request)
+    {
+        $data = $request->validate([
+            'newPassword' => ['sometimes', 'string', 'min:8'],
+        ]);
+
+        $provider = ProviderFactory::directory();
+        if (!$provider instanceof SupportsUserAuthenticationMethods) {
+            return $this->notSupportedResponse('user_authentication_methods');
+        }
+
+        $payload = [];
+        if (array_key_exists('newPassword', $data)) {
+            $payload['newPassword'] = $data['newPassword'];
+        }
+
+        $result = $provider->resetAuthenticationMethodPassword($id, $methodId, $payload);
+        return response()->json($result);
     }
 
     /**
@@ -359,30 +714,60 @@ class UsersController extends Controller
      *   summary="Invite user (admin)",
      *   tags={"Admin Users"},
      *   security={{"bearerAuth":{}}},
-     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object", required={"email"},
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"customerId","firstName","lastName","email"},
+     *     @OA\Property(property="customerId", type="string"),
+     *     @OA\Property(property="firstName", type="string"),
+     *     @OA\Property(property="lastName", type="string"),
      *     @OA\Property(property="email", type="string", format="email"),
-     *     @OA\Property(property="givenName", type="string"),
-     *     @OA\Property(property="familyName", type="string")
+     *     @OA\Property(property="isEnable", type="boolean", default=true)
      *   )),
      *   @OA\Response(response=202, description="Invitation accepted")
      * )
      */
     public function invite(Request $request)
     {
-        $email = (string) $request->string('email');
-        $given = $request->string('givenName');
-        $family = $request->string('familyName');
+        $data = $request->validate([
+            'customerId' => ['required', 'string'],
+            'firstName' => ['required', 'string'],
+            'lastName' => ['required', 'string'],
+            'email' => ['required', 'string', 'email'],
+            'isEnable' => ['sometimes', 'boolean'],
+        ]);
 
+        $email = mb_strtolower((string) $data['email']);
         $dir = ProviderFactory::directory();
         $existing = $dir->findByEmail($email);
+
         $user = $existing ?: $dir->create(new UserCreateRequest(
+            customerId: (string) $data['customerId'],
+            firstName: (string) $data['firstName'],
+            lastName: (string) $data['lastName'],
             email: $email,
-            givenName: $given,
-            familyName: $family,
-            invite: true,
+            isEnable: array_key_exists('isEnable', $data) ? (bool) $data['isEnable'] : true,
         ));
 
         $result = InvitationService::sendInvite($user);
         return response()->json(['status' => 'invited', 'details' => $result], 202);
     }
+    private function notSupportedResponse(string $capability)
+    {
+        return response()->json([
+            'message' => 'not_supported',
+            'capability' => $capability,
+            'vendor' => (string) config('identity.vendor'),
+        ], 501);
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
+

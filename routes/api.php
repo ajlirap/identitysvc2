@@ -39,9 +39,21 @@ Route::prefix('admin')->group(function () {
     Route::get('/users', [UsersController::class, 'index']);
     Route::post('/users', [UsersController::class, 'create']);
     Route::get('/users/{id}', [UsersController::class, 'get']);
+    Route::delete('/users/{id}', [UsersController::class, 'delete']);
     Route::post('/users/{id}/deactivate', [UsersController::class, 'deactivate']);
     Route::post('/users/{id}/activate', [UsersController::class, 'activate']);
     Route::post('/users/{id}/password-reset', [UsersController::class, 'adminReset']);
+    Route::patch('/users/{id}/password', [UsersController::class, 'updatePasswordProfile']);
+    Route::patch('/users/{id}/email-identity', [UsersController::class, 'updateEmailIdentity']);
+    Route::patch('/users/{id}/identities', [UsersController::class, 'updateIdentities']);
+    Route::get('/users/{id}/authentication/phone-methods', [UsersController::class, 'listPhoneMethods']);
+    Route::post('/users/{id}/authentication/phone-methods', [UsersController::class, 'addPhoneMethod']);
+    Route::delete('/users/{id}/authentication/phone-methods', [UsersController::class, 'deletePhoneMethods']);
+    Route::get('/users/{id}/authentication/email-methods', [UsersController::class, 'listEmailMethods']);
+    Route::post('/users/{id}/authentication/email-methods', [UsersController::class, 'addEmailMethod']);
+    Route::delete('/users/{id}/authentication/email-methods', [UsersController::class, 'deleteEmailMethods']);
+    Route::get('/users/{id}/authentication/methods', [UsersController::class, 'listAuthMethods']);
+    Route::post('/users/{id}/authentication/methods/{methodId}/reset-password', [UsersController::class, 'resetAuthMethodPassword']);
     Route::post('/users/invite', [UsersController::class, 'invite']);
     // Admin-safe existence/active check (JWT guarded)
     Route::post('/users/check-active', [UsersController::class, 'adminCheckActive'])->middleware(VerifyJwt::class);
