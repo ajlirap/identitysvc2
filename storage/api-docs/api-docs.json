@@ -225,7 +225,7 @@
                 "tags": [
                     "Admin Directory"
                 ],
-                "summary": "Patch Graph user (pass-through)",
+                "summary": "Enable/Disable user account",
                 "operationId": "4f58d7639798ed7ebff8b01217169104",
                 "parameters": [
                     {
@@ -242,6 +242,15 @@
                     "content": {
                         "application/json": {
                             "schema": {
+                                "required": [
+                                    "accountEnable"
+                                ],
+                                "properties": {
+                                    "accountEnable": {
+                                        "description": "Set to false to disable the user",
+                                        "type": "boolean"
+                                    }
+                                },
                                 "type": "object"
                             }
                         }
@@ -300,6 +309,89 @@
                     "content": {
                         "application/json": {
                             "schema": {
+                                "required": [
+                                    "accountEnabled",
+                                    "displayName",
+                                    "givenName",
+                                    "surname",
+                                    "mailNickname",
+                                    "mail",
+                                    "passwordProfile",
+                                    "usageLocation",
+                                    "extension_c1606dae4f14847a128579a35af167e_migarated",
+                                    "extension_c1606daee4f14847a128579a35af167e_customerId",
+                                    "identities"
+                                ],
+                                "properties": {
+                                    "accountEnabled": {
+                                        "type": "boolean"
+                                    },
+                                    "displayName": {
+                                        "type": "string"
+                                    },
+                                    "givenName": {
+                                        "type": "string"
+                                    },
+                                    "surname": {
+                                        "type": "string"
+                                    },
+                                    "mailNickname": {
+                                        "type": "string"
+                                    },
+                                    "mail": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "passwordProfile": {
+                                        "required": [
+                                            "forceChangePasswordNextSignIn",
+                                            "password"
+                                        ],
+                                        "properties": {
+                                            "forceChangePasswordNextSignIn": {
+                                                "type": "boolean"
+                                            },
+                                            "password": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
+                                    "usageLocation": {
+                                        "type": "string",
+                                        "maxLength": 2,
+                                        "minLength": 2
+                                    },
+                                    "extension_c1606dae4f14847a128579a35af167e_migarated": {
+                                        "type": "string"
+                                    },
+                                    "extension_c1606daee4f14847a128579a35af167e_customerId": {
+                                        "type": "integer"
+                                    },
+                                    "identities": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "signInType",
+                                                "issuer",
+                                                "issuerAssignedId"
+                                            ],
+                                            "properties": {
+                                                "signInType": {
+                                                    "type": "string"
+                                                },
+                                                "issuer": {
+                                                    "type": "string"
+                                                },
+                                                "issuerAssignedId": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "minItems": 1
+                                    }
+                                },
                                 "type": "object"
                             }
                         }
@@ -308,6 +400,225 @@
                 "responses": {
                     "201": {
                         "description": "Created"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/password": {
+            "patch": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Update a user's password profile",
+                "operationId": "9a4cd7705e05d242e3010b7aa439e086",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "passwordProfile"
+                                ],
+                                "properties": {
+                                    "passwordProfile": {
+                                        "required": [
+                                            "password",
+                                            "forceChangePasswordNextSignIn"
+                                        ],
+                                        "properties": {
+                                            "password": {
+                                                "type": "string",
+                                                "minLength": 8
+                                            },
+                                            "forceChangePasswordNextSignIn": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/email-identity": {
+            "patch": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Update a user's email sign-in identity",
+                "operationId": "cdb3461810d886bb78c3ad07a8028f33",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "identities"
+                                ],
+                                "properties": {
+                                    "identities": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "signInType",
+                                                "issuer",
+                                                "issuerAssignedId"
+                                            ],
+                                            "properties": {
+                                                "signInType": {
+                                                    "type": "string",
+                                                    "example": "emailAddress"
+                                                },
+                                                "issuer": {
+                                                    "type": "string"
+                                                },
+                                                "issuerAssignedId": {
+                                                    "type": "string",
+                                                    "format": "email"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "minItems": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/identities": {
+            "patch": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Update identities and password profile for a user",
+                "operationId": "8ff7ed83a5a011db2643e6f48a3688af",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "mail",
+                                    "identities",
+                                    "passwordProfile"
+                                ],
+                                "properties": {
+                                    "mail": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "identities": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "signInType",
+                                                "issuer",
+                                                "issuerAssignedId"
+                                            ],
+                                            "properties": {
+                                                "signInType": {
+                                                    "type": "string"
+                                                },
+                                                "issuer": {
+                                                    "type": "string"
+                                                },
+                                                "issuerAssignedId": {
+                                                    "type": "string",
+                                                    "format": "email"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "minItems": 1
+                                    },
+                                    "passwordProfile": {
+                                        "required": [
+                                            "password",
+                                            "forceChangePasswordNextSignIn"
+                                        ],
+                                        "properties": {
+                                            "password": {
+                                                "type": "string",
+                                                "minLength": 8
+                                            },
+                                            "forceChangePasswordNextSignIn": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
