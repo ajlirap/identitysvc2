@@ -86,105 +86,28 @@ class B2CUserDirectoryProvider implements UserDirectoryProvider, SupportsUserIde
     {
         $email = mb_strtolower($email);
 
-        // Query by issuerAssignedId only (broad), then select the best match locally.
-        // Issuer strings vary across tenants; filtering on issuer can cause false negatives.
-        $filter = rawurlencode("identities/any(c:c/issuerAssignedId eq '{$email}')");
-        $select = '$select=' . rawurlencode('id,displayName,identities,accountEnabled,givenName,surname,mail');
-        $url = 'https://graph.microsoft.com/v1.0/users?'.$select.'&$top=25&$filter=' . $filter;
+        // Simple query: filter by mail equals the provided email
+        $filter = rawurlencode("mail eq '{$email}'");
+        $select = '$select=' . rawurlencode('id,displayName,mail,accountEnabled,givenName,surname');
+        $url = 'https://graph.microsoft.com/v1.0/users?' . $select . '&$top=1&$filter=' . $filter;
         $res = $this->graph->get($url)->json();
-        $items = (array) ($res['value'] ?? []);
-        if (empty($items)) {
+        $u = $res['value'][0] ?? null;
+        if (!$u) {
             return null;
         }
 
-        $preferredIssuers = $this->candidateIssuers();
-
-        $best = null;
-        $bestScore = -1;
-        foreach ($items as $cand) {
-            if (!is_array($cand)) continue;
-            $score = $this->emailIdentityMatchScore($cand, $email, $preferredIssuers);
-            if ($score > $bestScore) {
-                $best = $cand;
-                $bestScore = $score;
-            }
-        }
-
-        if (!$best) {
-            return null;
-        }
-
-        $resolvedEmail = $this->extractEmailFromUser($best) ?: $email;
+        $resolvedEmail = strtolower((string) ($u['mail'] ?? $email));
 
         return new UserProfile(
-            id: (string) ($best['id'] ?? ''),
+            id: (string) ($u['id'] ?? ''),
             email: $resolvedEmail,
-            givenName: (string) ($best['givenName'] ?? null),
-            familyName: (string) ($best['surname'] ?? null),
-            displayName: (string) ($best['displayName'] ?? $resolvedEmail),
-            status: ($best['accountEnabled'] ?? true) ? 'active' : 'inactive',
+            givenName: (string) ($u['givenName'] ?? null),
+            familyName: (string) ($u['surname'] ?? null),
+            displayName: (string) ($u['displayName'] ?? $resolvedEmail),
+            status: ($u['accountEnabled'] ?? true) ? 'active' : 'inactive',
             roles: [],
-            attributes: [
-                'raw' => $best,
-            ],
+            attributes: [ 'raw' => $u ],
         );
-    }
-
-    private function candidateIssuers(): array
-    {
-        $tenant = (string) config('identity.b2c.tenant');
-        $tenantId = (string) config('identity.b2c.tenant_id');
-        $domain = strtolower((string) preg_replace('/^https?:\/\//i', '', (string) config('identity.b2c.domain')));
-
-        $candidates = [];
-        if ($tenant !== '') $candidates[] = strtolower($tenant);
-        if ($tenantId !== '') $candidates[] = strtolower($tenantId);
-        if ($domain !== '') $candidates[] = $domain;
-
-        // Also include <tenant>.onmicrosoft.com variant if not present
-        if ($tenant !== '') {
-            $onmicrosoft = preg_match('/\.onmicrosoft\.com$/i', $tenant) ? $tenant : ($tenant . '.onmicrosoft.com');
-            $candidates[] = strtolower($onmicrosoft);
-        }
-
-        return array_values(array_unique(array_filter($candidates)));
-    }
-
-    private function emailIdentityMatchScore(array $user, string $email, array $preferredIssuers): int
-    {
-        $identities = (array) ($user['identities'] ?? []);
-        $score = -1;
-        foreach ($identities as $idn) {
-            if (!is_array($idn)) continue;
-            $signInType = strtolower((string) ($idn['signInType'] ?? ''));
-            $issuerAssignedId = strtolower((string) ($idn['issuerAssignedId'] ?? ''));
-            $issuer = strtolower((string) ($idn['issuer'] ?? ''));
-            if ($issuerAssignedId !== $email) continue;
-
-            // Base match
-            $s = 1;
-            // Prefer local emailAddress identities
-            if ($signInType === 'emailaddress') $s += 2;
-            // Prefer issuer matching configured candidates
-            if (in_array($issuer, $preferredIssuers, true)) $s += 3;
-
-            $score = max($score, $s);
-        }
-        return $score;
-    }
-
-    private function extractEmailFromUser(array $user): ?string
-    {
-        $identities = (array) ($user['identities'] ?? []);
-        foreach ($identities as $idn) {
-            if (!is_array($idn)) continue;
-            $signInType = strtolower((string) ($idn['signInType'] ?? ''));
-            if ($signInType === 'emailaddress' && !empty($idn['issuerAssignedId'])) {
-                return strtolower((string) $idn['issuerAssignedId']);
-            }
-        }
-        if (!empty($user['mail'])) return strtolower((string) $user['mail']);
-        return null;
     }
 
     public function deactivate(string $id): void
