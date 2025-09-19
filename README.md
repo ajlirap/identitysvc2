@@ -98,6 +98,7 @@ Endpoints
 - GET  /api/me (with bearer token)    -> returns profile
 - GET  /api/admin/users               -> list users (admin)
 - POST /api/admin/users               -> create user (admin)
+- GET  /api/admin/users/by-email      -> get user by email (admin) query: email
 - POST /api/admin/users/invite        -> invite user (admin)
 - POST /api/admin/users/{id}/deactivate
 - POST /api/admin/users/{id}/password-reset  (body: { newPassword })

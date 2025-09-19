@@ -82,6 +82,22 @@ class UsersControllerTest extends TestCase
         $this->getJson('/api/admin/users/u1')->assertOk()->assertJsonPath('email', 'e@example.com');
     }
 
+    public function test_get_user_by_email_not_found_and_found(): void
+    {
+        /** @var UserDirectoryProvider $dir */
+        $dir = $this->app->make(B2CUserDirectoryProvider::class);
+        // Not found
+        $dir->shouldReceive('findByEmail')->once()->with('none@example.com')->andReturn(null);
+        $this->getJson('/api/admin/users/by-email?email=none@example.com')->assertNotFound();
+
+        // Found
+        $dir->shouldReceive('findByEmail')->once()->with('got@example.com')->andReturn(new UserProfile(id: 'u2', email: 'got@example.com'));
+        $this->getJson('/api/admin/users/by-email?email=got@example.com')->assertOk()->assertJsonPath('id', 'u2');
+
+        // Invalid email -> 400
+        $this->getJson('/api/admin/users/by-email?email=bad')->assertStatus(400);
+    }
+
     public function test_activate_deactivate_delete_adminReset_no_content(): void
     {
         /** @var UserDirectoryProvider $dir */

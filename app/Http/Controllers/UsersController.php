@@ -111,6 +111,32 @@ class UsersController extends Controller
     }
 
     /**
+     * @OA\Get(
+     *   path="/api/admin/users/by-email",
+     *   summary="Get user by email (admin)",
+     *   tags={"Admin Users"},
+     *   security={{"bearerAuth":{}}},
+     *   @OA\Parameter(name="email", in="query", required=true, @OA\Schema(type="string", format="email")),
+     *   @OA\Response(response=200, description="User", @OA\JsonContent(ref="#/components/schemas/UserProfile")),
+     *   @OA\Response(response=400, ref="#/components/responses/BadRequest"),
+     *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
+     *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
+     *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
+     *   @OA\Response(response=500, ref="#/components/responses/ServerError")
+     * )
+     */
+    public function getByEmail(Request $request)
+    {
+        $email = trim((string) $request->query('email', ''));
+        if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return response()->json(['message' => 'invalid_email'], 400);
+        }
+
+        $user = ProviderFactory::directory()->findByEmail(mb_strtolower($email));
+        return $user ? response()->json($user) : response()->json(['message' => 'Not found'], 404);
+    }
+
+    /**
      * @OA\Post(
      *   path="/api/admin/users/{id}/deactivate",
      *   summary="Deactivate user (admin)",
