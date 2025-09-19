@@ -84,56 +84,26 @@ class B2CUserDirectoryProvider implements UserDirectoryProvider, SupportsUserIde
 
     public function findByEmail(string $email): ?UserProfile
     {
-        // Azure AD B2C often stores local account emails in identities[].issuerAssignedId
-        // and may leave user.mail empty. Use a single OR filter that matches both places
-        // and then prefer a local email identity match when multiple rows are returned.
-        $emailLower = mb_strtolower($email);
-        $escaped = str_replace("'", "''", $emailLower); // OData escape single quotes
-
-        $filterExpr = "(".
-            "identities/any(c:c/issuerAssignedId eq '{$escaped}' and c/signInType eq 'emailAddress')".
-        ") or (".
-            "tolower(mail) eq '{$escaped}'".
-        ") or (".
-            "otherMails/any(m: tolower(m) eq '{$escaped}')".
-        ") or (".
-            "tolower(userPrincipalName) eq '{$escaped}'".
-        ")";
-
-        $filter = '$filter=' . rawurlencode($filterExpr);
-        $select = '$select=' . rawurlencode('id,displayName,mail,accountEnabled,givenName,surname,identities,otherMails,userPrincipalName');
-        $url = 'https://graph.microsoft.com/v1.0/users?' . $select . '&$top=25&' . $filter;
-
-        $res = $this->graph->get($url)->json();
-        $items = (array) ($res['value'] ?? []);
-        if (empty($items)) {
+        $trimmed = trim($email);
+        if ($trimmed === '') {
             return null;
         }
 
-        // Choose the best candidate: prefer an identities emailAddress match exactly equal to the email.
-        $best = null;
-        $bestHasLocalIdentity = false;
-        foreach ($items as $cand) {
-            if (!is_array($cand)) continue;
-            $hasLocalIdentity = false;
-            foreach ((array) ($cand['identities'] ?? []) as $idn) {
-                if (!is_array($idn)) continue;
-                $sit = strtolower((string) ($idn['signInType'] ?? ''));
-                $ia = strtolower((string) ($idn['issuerAssignedId'] ?? ''));
-                if ($sit === 'emailaddress' && $ia === $emailLower) {
-                    $hasLocalIdentity = true;
-                    break;
-                }
-            }
-            if ($best === null || ($hasLocalIdentity && !$bestHasLocalIdentity)) {
-                $best = $cand;
-                $bestHasLocalIdentity = $hasLocalIdentity;
-                if ($bestHasLocalIdentity) break; // perfect match found
-            }
+        // Azure AD B2C environments used here populate the mail attribute; perform a simple equality filter.
+        $escaped = str_replace("'", "''", $trimmed); // Escape single quotes for OData
+        $query = http_build_query([
+            '$filter' => "mail eq '{$escaped}'",
+            '$select' => 'id,displayName,mail,accountEnabled,givenName,surname',
+            '$top'    => 1,
+        ], '', '&', PHP_QUERY_RFC3986);
+
+        $res = $this->graph->get('https://graph.microsoft.com/v1.0/users?' . $query)->json();
+        $u = $res['value'][0] ?? null;
+        if (!$u) {
+            return null;
         }
 
-        $u = $best ?: $items[0];
-        $resolvedEmail = strtolower((string) ($u['mail'] ?? $emailLower));
+        $resolvedEmail = strtolower((string) ($u['mail'] ?? $trimmed));
 
         return new UserProfile(
             id: (string) ($u['id'] ?? ''),
