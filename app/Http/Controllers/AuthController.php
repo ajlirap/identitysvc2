@@ -45,7 +45,6 @@ class AuthController extends Controller
      *       @OA\Property(property="uses_pkce", type="boolean", example=true, description="Echo of the resolved PKCE decision for this request")
      *     )
      *   ),
-     *   @OA\Response(response=400, ref="#/components/responses/BadRequest"),
      *   @OA\Response(response=429, ref="#/components/responses/TooManyRequests"),
      *   @OA\Response(response=500, ref="#/components/responses/ServerError")
      * )
@@ -65,7 +64,7 @@ class AuthController extends Controller
             $challenge = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
             Cache::put('pkce:' . $state, $verifier, now()->addMinutes(10));
             $extras['code_challenge'] = $challenge;
-            // Note: authorization server usually infers S256, but you may also pass code_challenge_method=S256 upstream if needed.
+            // Optionally also pass code_challenge_method=S256 upstream if needed.
         }
 
         $url = ProviderFactory::identity()->authorizeUrl($extras);
@@ -85,7 +84,6 @@ class AuthController extends Controller
      *   @OA\Parameter(name="code", in="query", required=true, @OA\Schema(type="string")),
      *   @OA\Parameter(name="state", in="query", required=true, @OA\Schema(type="string")),
      *   @OA\Response(response=200, description="OIDC token response", @OA\JsonContent(ref="#/components/schemas/Tokens")),
-     *   @OA\Response(response=400, ref="#/components/responses/BadRequest"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=429, ref="#/components/responses/TooManyRequests"),
      *   @OA\Response(response=500, ref="#/components/responses/ServerError")
@@ -108,7 +106,16 @@ class AuthController extends Controller
      *   summary="Refresh tokens",
      *   description="Use a refresh token to obtain a fresh access token (and optionally new refresh/id tokens).",
      *   tags={"Auth"},
-     *   @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/RefreshRequest")),
+     *   @OA\RequestBody(
+     *     required=true,
+  *     @OA\MediaType(
+  *       mediaType="application/json",
+  *       @OA\Schema(type="object",
+  *         required={"refresh_token"},
+  *         @OA\Property(property="refresh_token", type="string")
+  *       )
+  *     )
+     *   ),
      *   @OA\Response(response=200, description="OIDC token response", @OA\JsonContent(ref="#/components/schemas/Tokens")),
      *   @OA\Response(response=400, ref="#/components/responses/BadRequest"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
@@ -149,7 +156,10 @@ class AuthController extends Controller
      *   summary="Logout",
      *   description="Performs local logout (stateless). Returns 204. The client should also sign out from the upstream identity provider if desired.",
      *   tags={"Auth"},
-     *   @OA\Response(response=204, description="No Content")
+     *   @OA\Response(response=204, description="No Content"),
+     *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
+     *   @OA\Response(response=429, ref="#/components/responses/TooManyRequests"),
+     *   @OA\Response(response=500, ref="#/components/responses/ServerError")
      * )
      */
     public function logout()

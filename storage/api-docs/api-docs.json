@@ -5,12 +5,6 @@
         "description": "Vendor-agnostic identity facade over Azure AD B2C, Auth0, Okta, or Keycloak.",
         "version": "1.0.0"
     },
-    "servers": [
-        {
-            "url": "/",
-            "description": "Application base URL"
-        }
-    ],
     "paths": {
         "/api/auth/login": {
             "get": {
@@ -18,22 +12,66 @@
                     "Auth"
                 ],
                 "summary": "Start OIDC login",
+                "description": "Returns an authorization URL (and PKCE challenge when applicable) that the client can use to redirect the user to the upstream identity provider.",
                 "operationId": "33b4e968103a1b9265ea7346c45b3c1d",
+                "parameters": [
+                    {
+                        "name": "pkce",
+                        "in": "query",
+                        "description": "Explicitly enable or disable PKCE for this request (overrides default behavior).",
+                        "required": false,
+                        "schema": {
+                            "type": "boolean"
+                        },
+                        "example": true
+                    },
+                    {
+                        "name": "use_pkce",
+                        "in": "query",
+                        "description": "Alias for the pkce parameter.",
+                        "required": false,
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "name": "client_type",
+                        "in": "query",
+                        "description": "Hint used to infer PKCE behavior. Common values: 'spa', 'native', 'server'.",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "spa"
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "Authorize URL",
+                        "description": "Authorize URL payload",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "properties": {
                                         "authorize_url": {
-                                            "type": "string"
+                                            "type": "string",
+                                            "example": "https://login.identity.example.com/oauth2/v2.0/authorize?client_id=...&response_type=code&state=..."
+                                        },
+                                        "uses_pkce": {
+                                            "description": "Echo of the resolved PKCE decision for this request",
+                                            "type": "boolean",
+                                            "example": true
                                         }
                                     },
                                     "type": "object"
                                 }
                             }
                         }
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 }
             }
@@ -43,7 +81,8 @@
                 "tags": [
                     "Auth"
                 ],
-                "summary": "OIDC callback (auth code exchange)",
+                "summary": "OIDC callback (authorization code exchange)",
+                "description": "Exchanges the authorization code for tokens. If PKCE was used for this 'state', the stored verifier is automatically applied.",
                 "operationId": "9e77cef6c23d0c1e57c30a916d124651",
                 "parameters": [
                     {
@@ -65,7 +104,23 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Tokens"
+                        "description": "OIDC token response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Tokens"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 }
             }
@@ -76,6 +131,7 @@
                     "Auth"
                 ],
                 "summary": "Refresh tokens",
+                "description": "Use a refresh token to obtain a fresh access token (and optionally new refresh/id tokens).",
                 "operationId": "b2eae7a8032954d25b46c7ec6f489c68",
                 "requestBody": {
                     "required": true,
@@ -97,7 +153,26 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Tokens"
+                        "description": "OIDC token response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Tokens"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 }
             }
@@ -108,13 +183,27 @@
                     "Auth"
                 ],
                 "summary": "Get current user profile",
+                "description": "Returns the normalized user profile for the bearer access token supplied in the Authorization header.",
                 "operationId": "9d9bc556f927575aa492a88c28fe5908",
                 "responses": {
                     "200": {
-                        "description": "User profile"
+                        "description": "User profile",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserProfile"
+                                }
+                            }
+                        }
                     },
                     "401": {
-                        "description": "Unauthorized"
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -129,11 +218,21 @@
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Logout (BFF/cleanup)",
+                "summary": "Logout",
+                "description": "Performs local logout (stateless). Returns 204. The client should also sign out from the upstream identity provider if desired.",
                 "operationId": "fe8f3429cd6979b3b4517e186505f9f9",
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 }
             }
@@ -147,7 +246,37 @@
                 "operationId": "55a2e028b04c7783828a47da84b6dbbc",
                 "responses": {
                     "200": {
-                        "description": "OIDC discovery document"
+                        "description": "OIDC discovery document",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "issuer": {
+                                            "type": "string"
+                                        },
+                                        "authorization_endpoint": {
+                                            "type": "string"
+                                        },
+                                        "token_endpoint": {
+                                            "type": "string"
+                                        },
+                                        "jwks_uri": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -180,12 +309,70 @@
                         "required": false,
                         "schema": {
                             "type": "string"
-                        }
+                        },
+                        "example": "id,displayName,mail,identities"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Raw Graph user JSON"
+                        "description": "Raw Graph user JSON",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "displayName": {
+                                            "type": "string"
+                                        },
+                                        "mail": {
+                                            "type": "string",
+                                            "format": "email"
+                                        },
+                                        "accountEnabled": {
+                                            "type": "boolean"
+                                        },
+                                        "identities": {
+                                            "type": "array",
+                                            "items": {
+                                                "required": [
+                                                    "signInType",
+                                                    "issuer",
+                                                    "issuerAssignedId"
+                                                ],
+                                                "properties": {
+                                                    "signInType": {
+                                                        "type": "string"
+                                                    },
+                                                    "issuer": {
+                                                        "type": "string"
+                                                    },
+                                                    "issuerAssignedId": {
+                                                        "type": "string",
+                                                        "format": "email"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -213,6 +400,18 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -247,7 +446,7 @@
                                 ],
                                 "properties": {
                                     "accountEnable": {
-                                        "description": "Set to false to disable the user",
+                                        "description": "Set false to disable the user",
                                         "type": "boolean"
                                     }
                                 },
@@ -259,6 +458,21 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -273,7 +487,8 @@
                 "tags": [
                     "Admin Directory"
                 ],
-                "summary": "Query Graph users (supports mail eq '...')",
+                "summary": "Query Graph users by email",
+                "description": "Pass-through to Microsoft Graph with a filter 'mail eq {email}'.",
                 "operationId": "7b60c022e8ce4df874af7bf2637b2d5a",
                 "parameters": [
                     {
@@ -289,7 +504,72 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Raw Graph users list JSON"
+                        "description": "Users list",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "value": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "displayName": {
+                                                        "type": "string"
+                                                    },
+                                                    "mail": {
+                                                        "type": "string",
+                                                        "format": "email"
+                                                    },
+                                                    "accountEnabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "identities": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "required": [
+                                                                "signInType",
+                                                                "issuer",
+                                                                "issuerAssignedId"
+                                                            ],
+                                                            "properties": {
+                                                                "signInType": {
+                                                                    "type": "string"
+                                                                },
+                                                                "issuer": {
+                                                                    "type": "string"
+                                                                },
+                                                                "issuerAssignedId": {
+                                                                    "type": "string",
+                                                                    "format": "email"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -309,89 +589,6 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "required": [
-                                    "accountEnabled",
-                                    "displayName",
-                                    "givenName",
-                                    "surname",
-                                    "mailNickname",
-                                    "mail",
-                                    "passwordProfile",
-                                    "usageLocation",
-                                    "extension_c1606dae4f14847a128579a35af167e_migarated",
-                                    "extension_c1606daee4f14847a128579a35af167e_customerId",
-                                    "identities"
-                                ],
-                                "properties": {
-                                    "accountEnabled": {
-                                        "type": "boolean"
-                                    },
-                                    "displayName": {
-                                        "type": "string"
-                                    },
-                                    "givenName": {
-                                        "type": "string"
-                                    },
-                                    "surname": {
-                                        "type": "string"
-                                    },
-                                    "mailNickname": {
-                                        "type": "string"
-                                    },
-                                    "mail": {
-                                        "type": "string",
-                                        "format": "email"
-                                    },
-                                    "passwordProfile": {
-                                        "required": [
-                                            "forceChangePasswordNextSignIn",
-                                            "password"
-                                        ],
-                                        "properties": {
-                                            "forceChangePasswordNextSignIn": {
-                                                "type": "boolean"
-                                            },
-                                            "password": {
-                                                "type": "string"
-                                            }
-                                        },
-                                        "type": "object"
-                                    },
-                                    "usageLocation": {
-                                        "type": "string",
-                                        "maxLength": 2,
-                                        "minLength": 2
-                                    },
-                                    "extension_c1606dae4f14847a128579a35af167e_migarated": {
-                                        "type": "string"
-                                    },
-                                    "extension_c1606daee4f14847a128579a35af167e_customerId": {
-                                        "type": "integer"
-                                    },
-                                    "identities": {
-                                        "type": "array",
-                                        "items": {
-                                            "required": [
-                                                "signInType",
-                                                "issuer",
-                                                "issuerAssignedId"
-                                            ],
-                                            "properties": {
-                                                "signInType": {
-                                                    "type": "string"
-                                                },
-                                                "issuer": {
-                                                    "type": "string"
-                                                },
-                                                "issuerAssignedId": {
-                                                    "type": "string"
-                                                }
-                                            },
-                                            "type": "object"
-                                        },
-                                        "minItems": 1
-                                    }
-                                },
                                 "type": "object"
                             }
                         }
@@ -399,7 +596,38 @@
                 },
                 "responses": {
                     "201": {
-                        "description": "Created"
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "displayName": {
+                                            "type": "string"
+                                        },
+                                        "mail": {
+                                            "type": "string",
+                                            "format": "email"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -437,8 +665,7 @@
                                 "properties": {
                                     "passwordProfile": {
                                         "required": [
-                                            "password",
-                                            "forceChangePasswordNextSignIn"
+                                            "password"
                                         ],
                                         "properties": {
                                             "password": {
@@ -460,6 +687,21 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -505,8 +747,7 @@
                                             ],
                                             "properties": {
                                                 "signInType": {
-                                                    "type": "string",
-                                                    "example": "emailAddress"
+                                                    "type": "string"
                                                 },
                                                 "issuer": {
                                                     "type": "string"
@@ -529,6 +770,21 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -596,13 +852,11 @@
                                     },
                                     "passwordProfile": {
                                         "required": [
-                                            "password",
-                                            "forceChangePasswordNextSignIn"
+                                            "password"
                                         ],
                                         "properties": {
                                             "password": {
-                                                "type": "string",
-                                                "minLength": 8
+                                                "type": "string"
                                             },
                                             "forceChangePasswordNextSignIn": {
                                                 "type": "boolean"
@@ -619,6 +873,21 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -648,6 +917,18 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -676,7 +957,45 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of phone methods"
+                        "description": "List of phone methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "value": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "phoneNumber": {
+                                                        "type": "string"
+                                                    },
+                                                    "phoneType": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -730,7 +1049,37 @@
                 },
                 "responses": {
                     "201": {
-                        "description": "Created"
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "phoneNumber": {
+                                            "type": "string"
+                                        },
+                                        "phoneType": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -767,6 +1116,18 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -795,7 +1156,46 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of email methods"
+                        "description": "List of email methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "value": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "emailAddress": {
+                                                        "type": "string",
+                                                        "format": "email"
+                                                    },
+                                                    "isPrimary": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -841,7 +1241,38 @@
                 },
                 "responses": {
                     "201": {
-                        "description": "Created"
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "emailAddress": {
+                                            "type": "string",
+                                            "format": "email"
+                                        },
+                                        "isPrimary": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -878,6 +1309,18 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -906,7 +1349,45 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of methods"
+                        "description": "List of methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "value": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "displayName": {
+                                                        "type": "string"
+                                                    },
+                                                    "@odata.type": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -948,7 +1429,8 @@
                             "schema": {
                                 "properties": {
                                     "newPassword": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "minLength": 8
                                     }
                                 },
                                 "type": "object"
@@ -958,7 +1440,38 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Password reset result"
+                        "description": "Password reset result",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "temporaryPassword": {
+                                            "type": "string",
+                                            "nullable": true
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -981,21 +1494,16 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "properties": {
-                                        "access_token": {
-                                            "type": "string"
-                                        },
-                                        "token_type": {
-                                            "type": "string"
-                                        },
-                                        "expires_in": {
-                                            "type": "integer"
-                                        }
-                                    },
-                                    "type": "object"
+                                    "$ref": "#/components/schemas/Tokens"
                                 }
                             }
                         }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 }
             }
@@ -1011,6 +1519,7 @@
                     {
                         "name": "q",
                         "in": "query",
+                        "description": "Free-text search",
                         "required": false,
                         "schema": {
                             "type": "string"
@@ -1058,6 +1567,15 @@
                                 }
                             }
                         }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -1072,44 +1590,6 @@
                 ],
                 "summary": "Create user (admin)",
                 "operationId": "0ecc4f542a146a9fc6aa5647f66cb7e6",
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "required": [
-                                    "email"
-                                ],
-                                "properties": {
-                                    "email": {
-                                        "type": "string",
-                                        "format": "email"
-                                    },
-                                    "givenName": {
-                                        "type": "string"
-                                    },
-                                    "familyName": {
-                                        "type": "string"
-                                    },
-                                    "roles": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "attributes": {
-                                        "type": "object"
-                                    },
-                                    "invite": {
-                                        "type": "boolean",
-                                        "default": true
-                                    }
-                                },
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
                 "responses": {
                     "201": {
                         "description": "Created",
@@ -1120,6 +1600,21 @@
                                 }
                             }
                         }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -1157,8 +1652,56 @@
                             }
                         }
                     },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
                     "404": {
-                        "description": "Not Found"
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Delete user (admin)",
+                "operationId": "d7f03b4c0a20ddd36263cb1dca91e4b7",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -1188,6 +1731,18 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -1217,6 +1772,18 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -1245,6 +1812,10 @@
                                     "email": {
                                         "type": "string",
                                         "format": "email"
+                                    },
+                                    "captcha": {
+                                        "type": "string",
+                                        "nullable": true
                                     }
                                 },
                                 "type": "object"
@@ -1273,6 +1844,15 @@
                                 }
                             }
                         }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 }
             }
@@ -1305,7 +1885,29 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Accepted"
+                        "description": "Accepted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "If the account exists, an email was sent."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 }
             }
@@ -1330,6 +1932,879 @@
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/password": {
+            "patch": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Update a user's password profile",
+                "operationId": "ee8486633b3fd791dd2f6d6ced44f645",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "passwordProfile"
+                                ],
+                                "properties": {
+                                    "passwordProfile": {
+                                        "required": [
+                                            "password"
+                                        ],
+                                        "properties": {
+                                            "password": {
+                                                "type": "string",
+                                                "minLength": 8
+                                            },
+                                            "forceChangePasswordNextSignIn": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/email-identity": {
+            "patch": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Replace email sign-in identities",
+                "operationId": "cb5be8ce83398280fc91a4303ecaaba4",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "identities"
+                                ],
+                                "properties": {
+                                    "identities": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "signInType",
+                                                "issuer",
+                                                "issuerAssignedId"
+                                            ],
+                                            "properties": {
+                                                "signInType": {
+                                                    "type": "string"
+                                                },
+                                                "issuer": {
+                                                    "type": "string"
+                                                },
+                                                "issuerAssignedId": {
+                                                    "type": "string",
+                                                    "format": "email"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "minItems": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/identities": {
+            "patch": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Replace identities and password profile",
+                "operationId": "05324f155bd5ccdeed20f7a7a1db31cb",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "mail",
+                                    "identities",
+                                    "passwordProfile"
+                                ],
+                                "properties": {
+                                    "mail": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "identities": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "signInType",
+                                                "issuer",
+                                                "issuerAssignedId"
+                                            ],
+                                            "properties": {
+                                                "signInType": {
+                                                    "type": "string"
+                                                },
+                                                "issuer": {
+                                                    "type": "string"
+                                                },
+                                                "issuerAssignedId": {
+                                                    "type": "string",
+                                                    "format": "email"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "minItems": 1
+                                    },
+                                    "passwordProfile": {
+                                        "required": [
+                                            "password"
+                                        ],
+                                        "properties": {
+                                            "password": {
+                                                "type": "string"
+                                            },
+                                            "forceChangePasswordNextSignIn": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/authentication/phone-methods": {
+            "get": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "List phone authentication methods",
+                "operationId": "b4c1269245fba9e28c951a7bd7482e33",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Phone methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Add phone authentication method",
+                "operationId": "bcb9decc3ec2e9132961ff3d1aca27c6",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "phoneNumber",
+                                    "phoneType"
+                                ],
+                                "properties": {
+                                    "phoneNumber": {
+                                        "type": "string"
+                                    },
+                                    "phoneType": {
+                                        "type": "string",
+                                        "enum": [
+                                            "mobile",
+                                            "alternateMobile",
+                                            "office"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Delete phone authentication methods",
+                "operationId": "6b6098151fbf2a6d63fc32af28b8ced4",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "query",
+                        "description": "If omitted, deletes all",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/authentication/email-methods": {
+            "get": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "List email authentication methods",
+                "operationId": "c1f60c098150e93406c84117bbf696ec",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Email methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Add email authentication method",
+                "operationId": "d30a089c8882a94fb1792d7d2b9ecbfb",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "emailAddress"
+                                ],
+                                "properties": {
+                                    "emailAddress": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "user@contoso.com"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Delete email authentication methods",
+                "operationId": "df2436b6adb3c114436091872969a7fd",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "query",
+                        "description": "If omitted, deletes all",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/authentication/methods": {
+            "get": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "List authentication methods",
+                "operationId": "5f56f4b024ca7637f2211bb4c877a639",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Authentication methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/authentication/methods/{methodId}/reset-password": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Reset password via authentication method",
+                "operationId": "c3b2e926dd32395ce3a46c487d69898d",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "newPassword": {
+                                        "type": "string",
+                                        "minLength": 8
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Password reset result",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -1358,6 +2833,10 @@
                                     "email": {
                                         "type": "string",
                                         "format": "email"
+                                    },
+                                    "captcha": {
+                                        "type": "string",
+                                        "nullable": true
                                     }
                                 },
                                 "type": "object"
@@ -1383,12 +2862,29 @@
                                         },
                                         "message": {
                                             "type": "string"
+                                        },
+                                        "exists": {
+                                            "type": "boolean",
+                                            "nullable": true
+                                        },
+                                        "active": {
+                                            "type": "boolean",
+                                            "nullable": true
                                         }
                                     },
                                     "type": "object"
                                 }
                             }
                         }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 }
             }
@@ -1427,10 +2923,12 @@
                                 "schema": {
                                     "properties": {
                                         "exists": {
-                                            "type": "boolean"
+                                            "type": "boolean",
+                                            "example": true
                                         },
                                         "active": {
-                                            "type": "boolean"
+                                            "type": "boolean",
+                                            "example": true
                                         },
                                         "user": {
                                             "oneOf": [
@@ -1447,10 +2945,16 @@
                         }
                     },
                     "400": {
-                        "description": "Bad Request"
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
                     },
                     "403": {
-                        "description": "Forbidden"
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -1473,18 +2977,33 @@
                         "application/json": {
                             "schema": {
                                 "required": [
+                                    "customerId",
+                                    "firstName",
+                                    "lastName",
                                     "email"
                                 ],
                                 "properties": {
+                                    "customerId": {
+                                        "type": "string"
+                                    },
+                                    "firstName": {
+                                        "type": "string"
+                                    },
+                                    "lastName": {
+                                        "type": "string"
+                                    },
                                     "email": {
                                         "type": "string",
                                         "format": "email"
                                     },
-                                    "givenName": {
-                                        "type": "string"
+                                    "isEnable": {
+                                        "type": "boolean",
+                                        "default": true
                                     },
-                                    "familyName": {
-                                        "type": "string"
+                                    "password": {
+                                        "type": "string",
+                                        "minLength": 8,
+                                        "nullable": true
                                     }
                                 },
                                 "type": "object"
@@ -1494,7 +3013,37 @@
                 },
                 "responses": {
                     "202": {
-                        "description": "Invitation accepted"
+                        "description": "Invitation accepted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "details": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "security": [
@@ -1507,6 +3056,40 @@
     },
     "components": {
         "schemas": {
+            "Tokens": {
+                "required": [
+                    "expiresIn"
+                ],
+                "properties": {
+                    "accessToken": {
+                        "description": "Access token issued by the identity provider",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "refreshToken": {
+                        "description": "Refresh token that can be used to obtain new access tokens",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "expiresIn": {
+                        "description": "Lifetime of the access token in seconds",
+                        "type": "integer",
+                        "example": 3600
+                    },
+                    "idToken": {
+                        "description": "ID token (when available)",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "tokenType": {
+                        "description": "Token type as reported by the provider",
+                        "type": "string",
+                        "example": "Bearer",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
             "UserProfile": {
                 "required": [
                     "id",
@@ -1552,13 +3135,153 @@
                     }
                 },
                 "type": "object"
+            },
+            "GraphAccountEnableRequest": {
+                "required": [
+                    "accountEnable"
+                ],
+                "properties": {
+                    "accountEnable": {
+                        "description": "Set false to disable the user",
+                        "type": "boolean",
+                        "example": false
+                    }
+                },
+                "type": "object"
             }
         },
-        "securitySchemes": {
-            "bearerAuth": {
-                "type": "http",
-                "bearerFormat": "JWT",
-                "scheme": "bearer"
+        "responses": {
+            "BadRequest": {
+                "description": "Bad Request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "Unauthorized": {
+                "description": "Unauthorized",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "Forbidden": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "NotFound": {
+                "description": "Not Found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "UnprocessableEntity": {
+                "description": "Validation failed",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "errors": {
+                                    "type": "object"
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "TooManyRequests": {
+                "description": "Too Many Requests",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "ServerError": {
+                "description": "Server Error",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
             }
         }
     },

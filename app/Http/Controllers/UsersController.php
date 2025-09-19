@@ -21,7 +21,10 @@ class UsersController extends Controller
      *   @OA\Parameter(name="q", in="query", required=false, description="Free-text search", @OA\Schema(type="string")),
      *   @OA\Parameter(name="limit", in="query", required=false, @OA\Schema(type="integer", minimum=1, maximum=200, default=50)),
      *   @OA\Parameter(name="cursor", in="query", required=false, @OA\Schema(type="string")),
-     *   @OA\Response(response=200, description="List of users", @OA\JsonContent(ref="#/components/schemas/PaginatedUsers")),
+     *   @OA\Response(response=200, description="List of users", @OA\JsonContent(type="object",
+     *     @OA\Property(property="items", type="array", @OA\Items(ref="#/components/schemas/UserProfile")),
+     *     @OA\Property(property="nextCursor", type="string", nullable=true)
+     *   )),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=500, ref="#/components/responses/ServerError")
@@ -37,12 +40,12 @@ class UsersController extends Controller
     }
 
     /**
-     * @OA@Post(
+     * @OA\Post(
      *   path="/api/admin/users",
      *   summary="Create user (admin)",
      *   tags={"Admin Users"},
      *   security={{"bearerAuth":{}}},
-     *   @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/CreateUserRequest")),
+     *   
      *   @OA\Response(response=201, description="Created", @OA\JsonContent(ref="#/components/schemas/UserProfile")),
      *   @OA\Response(response=400, ref="#/components/responses/BadRequest"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
@@ -139,8 +142,16 @@ class UsersController extends Controller
      *   path="/api/users/validate-email",
      *   summary="Validate email format (public)",
      *   tags={"Public"},
-     *   @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/ValidateEmailRequest")),
-     *   @OA\Response(response=200, description="Validation result", @OA\JsonContent(ref="#/components/schemas/ValidateEmailResult")),
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"email"},
+     *     @OA\Property(property="email", type="string", format="email"),
+     *     @OA\Property(property="captcha", type="string", nullable=true)
+     *   )),
+     *   @OA\Response(response=200, description="Validation result", @OA\JsonContent(type="object",
+     *     @OA\Property(property="validFormat", type="boolean"),
+     *     @OA\Property(property="allowedDomain", type="boolean"),
+     *     @OA\Property(property="mxValid", type="boolean")
+     *   )),
      *   @OA\Response(response=400, ref="#/components/responses/BadRequest"),
      *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
      *   @OA\Response(response=500, ref="#/components/responses/ServerError")
@@ -195,7 +206,7 @@ class UsersController extends Controller
      *   tags={"Public"},
      *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
      *     required={"email"},
-     *     @OA\Property(property="email", type="string", format="email", example="user@company.com")
+     *     @OA\Property(property="email", type="string", format="email")
      *   )),
      *   @OA\Response(response=200, description="Accepted", @OA\JsonContent(type="object",
      *     @OA\Property(property="status", type="string", example="If the account exists, an email was sent.")
@@ -261,12 +272,10 @@ class UsersController extends Controller
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
      *     required={"passwordProfile"},
-     *     @OA\Property(
-     *       property="passwordProfile",
-     *       type="object",
+     *     @OA\Property(property="passwordProfile", type="object",
      *       required={"password"},
-     *       @OA\Property(property="password", type="string", minLength=8, example="S3curePass!"),
-     *       @OA\Property(property="forceChangePasswordNextSignIn", type="boolean", example=true)
+     *       @OA\Property(property="password", type="string", minLength=8),
+     *       @OA\Property(property="forceChangePasswordNextSignIn", type="boolean")
      *     )
      *   )),
      *   @OA\Response(response=204, description="No Content"),
@@ -274,7 +283,9 @@ class UsersController extends Controller
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
      *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
-     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(type="object",
+     *     @OA\Property(property="message", type="string")
+     *   ))
      * )
      */
     public function updatePasswordProfile(string $id, Request $request)
@@ -305,9 +316,9 @@ class UsersController extends Controller
      *     required={"identities"},
      *     @OA\Property(property="identities", type="array", minItems=1, @OA\Items(type="object",
      *       required={"signInType","issuer","issuerAssignedId"},
-     *       @OA\Property(property="signInType", type="string", example="emailAddress"),
-     *       @OA\Property(property="issuer", type="string", example="contoso.onmicrosoft.com"),
-     *       @OA\Property(property="issuerAssignedId", type="string", format="email", example="user@contoso.com")
+     *       @OA\Property(property="signInType", type="string"),
+     *       @OA\Property(property="issuer", type="string"),
+     *       @OA\Property(property="issuerAssignedId", type="string", format="email")
      *     ))
      *   )),
      *   @OA\Response(response=204, description="No Content"),
@@ -315,7 +326,9 @@ class UsersController extends Controller
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
      *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
-     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(type="object",
+     *     @OA\Property(property="message", type="string")
+     *   ))
      * )
      */
     public function updateEmailIdentity(string $id, Request $request)
@@ -353,7 +366,8 @@ class UsersController extends Controller
      *       @OA\Property(property="issuer", type="string"),
      *       @OA\Property(property="issuerAssignedId", type="string", format="email")
      *     )),
-     *     @OA\Property(property="passwordProfile", type="object", required={"password"},
+     *     @OA\Property(property="passwordProfile", type="object",
+     *       required={"password"},
      *       @OA\Property(property="password", type="string"),
      *       @OA\Property(property="forceChangePasswordNextSignIn", type="boolean")
      *     )
@@ -363,7 +377,9 @@ class UsersController extends Controller
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
      *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
-     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(type="object",
+     *     @OA\Property(property="message", type="string")
+     *   ))
      * )
      */
     public function updateIdentities(string $id, Request $request)
@@ -400,7 +416,9 @@ class UsersController extends Controller
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
-     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(type="object",
+     *     @OA\Property(property="message", type="string")
+     *   ))
      * )
      */
     public function listPhoneMethods(string $id)
@@ -422,15 +440,17 @@ class UsersController extends Controller
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
      *     required={"phoneNumber","phoneType"},
-     *     @OA\Property(property="phoneNumber", type="string", example="+1 555 0100"),
-     *     @OA\Property(property="phoneType", type="string", enum={"mobile","alternateMobile","office"}, example="mobile")
+     *     @OA\Property(property="phoneNumber", type="string"),
+     *     @OA\Property(property="phoneType", type="string", enum={"mobile","alternateMobile","office"})
      *   )),
      *   @OA\Response(response=201, description="Created", @OA\JsonContent(type="object")),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
      *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
-     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(type="object",
+     *     @OA\Property(property="message", type="string")
+     *   ))
      * )
      */
     public function addPhoneMethod(string $id, Request $request)
@@ -461,7 +481,9 @@ class UsersController extends Controller
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
-     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(type="object",
+     *     @OA\Property(property="message", type="string")
+     *   ))
      * )
      */
     public function deletePhoneMethods(string $id, Request $request)
@@ -487,7 +509,9 @@ class UsersController extends Controller
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
-     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(type="object",
+     *     @OA\Property(property="message", type="string")
+     *   ))
      * )
      */
     public function listEmailMethods(string $id)
@@ -507,16 +531,25 @@ class UsersController extends Controller
      *   tags={"Admin Users"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
-     *     required={"emailAddress"},
-     *     @OA\Property(property="emailAddress", type="string", format="email", example="user@contoso.com")
-     *   )),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *       mediaType="application/json",
+     *       @OA\Schema(
+     *         type="object",
+     *         required={"emailAddress"},
+     *         @OA\Property(property="emailAddress", type="string", format="email", example="user@contoso.com")
+     *       )
+     *     )
+     *   ),
      *   @OA\Response(response=201, description="Created", @OA\JsonContent(type="object")),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
      *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
-     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(type="object",
+     *     @OA\Property(property="message", type="string")
+     *   ))
      * )
      */
     public function addEmailMethod(string $id, Request $request)
@@ -546,7 +579,9 @@ class UsersController extends Controller
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
-     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(type="object",
+     *     @OA\Property(property="message", type="string")
+     *   ))
      * )
      */
     public function deleteEmailMethods(string $id, Request $request)
@@ -572,7 +607,9 @@ class UsersController extends Controller
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
-     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(type="object",
+     *     @OA\Property(property="message", type="string")
+     *   ))
      * )
      */
     public function listAuthMethods(string $id)
@@ -593,13 +630,17 @@ class UsersController extends Controller
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\Parameter(name="methodId", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\RequestBody(required=false, @OA\JsonContent(type="object", @OA\Property(property="newPassword", type="string", minLength=8, example="Temp#12345"))),
+     *   @OA\RequestBody(required=false, @OA\JsonContent(type="object",
+     *     @OA\Property(property="newPassword", type="string", minLength=8)
+     *   )),
      *   @OA\Response(response=200, description="Password reset result", @OA\JsonContent(type="object")),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
      *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
-     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(ref="#/components/schemas/ErrorResponse"))
+     *   @OA\Response(response=501, description="Not Implemented", @OA\JsonContent(type="object",
+     *     @OA\Property(property="message", type="string")
+     *   ))
      * )
      */
     public function resetAuthMethodPassword(string $id, string $methodId, Request $request)
@@ -627,8 +668,19 @@ class UsersController extends Controller
      *   path="/api/users/check-active",
      *   summary="Public-safe eligibility check (non-enumerating)",
      *   tags={"Public"},
-     *   @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/ValidateEmailRequest")),
-     *   @OA\Response(response=200, description="Generic eligibility without revealing account existence", @OA\JsonContent(ref="#/components/schemas/EligibilityCheck")),
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"email"},
+     *     @OA\Property(property="email", type="string", format="email"),
+     *     @OA\Property(property="captcha", type="string", nullable=true)
+     *   )),
+     *   @OA\Response(response=200, description="Generic eligibility without revealing account existence", @OA\JsonContent(type="object",
+     *     @OA\Property(property="eligible", type="boolean"),
+     *     @OA\Property(property="validFormat", type="boolean"),
+     *     @OA\Property(property="allowedDomain", type="boolean"),
+     *     @OA\Property(property="message", type="string"),
+     *     @OA\Property(property="exists", type="boolean", nullable=true),
+     *     @OA\Property(property="active", type="boolean", nullable=true)
+     *   )),
      *   @OA\Response(response=400, ref="#/components/responses/BadRequest"),
      *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
      *   @OA\Response(response=500, ref="#/components/responses/ServerError")
@@ -703,8 +755,9 @@ class UsersController extends Controller
      *   summary="Admin: Check if email exists and if user is active",
      *   tags={"Admin Users"},
      *   security={{"bearerAuth":{}}},
-     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object", required={"email"},
-     *     @OA\Property(property="email", type="string", format="email", example="user@contoso.com")
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"email"},
+     *     @OA\Property(property="email", type="string", format="email")
      *   )),
      *   @OA\Response(response=200, description="Exists/active and optional user", @OA\JsonContent(type="object",
      *     @OA\Property(property="exists", type="boolean", example=true),
@@ -752,8 +805,19 @@ class UsersController extends Controller
      *   summary="Invite user (admin)",
      *   tags={"Admin Users"},
      *   security={{"bearerAuth":{}}},
-     *   @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/InviteUserRequest")),
-     *   @OA\Response(response=202, description="Invitation accepted", @OA\JsonContent(ref="#/components/schemas/InviteResult")),
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"customerId","firstName","lastName","email"},
+     *     @OA\Property(property="customerId", type="string"),
+     *     @OA\Property(property="firstName", type="string"),
+     *     @OA\Property(property="lastName", type="string"),
+     *     @OA\Property(property="email", type="string", format="email"),
+     *     @OA\Property(property="isEnable", type="boolean", default=true),
+     *     @OA\Property(property="password", type="string", minLength=8, nullable=true)
+     *   )),
+     *   @OA\Response(response=202, description="Invitation accepted", @OA\JsonContent(type="object",
+     *     @OA\Property(property="status", type="string"),
+     *     @OA\Property(property="details", type="object")
+     *   )),
      *   @OA\Response(response=400, ref="#/components/responses/BadRequest"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),

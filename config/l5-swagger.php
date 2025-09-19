@@ -12,8 +12,12 @@ return [
     */
     'paths' => [
         'annotations' => [
-            base_path('app/Http/Controllers'),
-            base_path('app/OpenApi'), // Add this line to include the OpenApi directory
+            // Scan OpenApi first so component schemas are discovered before controllers reference them
+            base_path('app/OpenApi'),
+            // Then controllers
+            base_path('app/Http'),
+            // Then DTOs (schema classes like UserProfile, Tokens)
+            base_path('app/DTO'),
         ]
     ]
 ];

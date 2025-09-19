@@ -16,7 +16,12 @@ class B2CGraphController extends Controller
      *   summary="Get OpenID configuration for the tenant",
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
-     *   @OA\Response(response=200, description="OIDC discovery document", @OA\JsonContent(ref="#/components/schemas/OpenIdConfiguration")),
+     *   @OA\Response(response=200, description="OIDC discovery document", @OA\JsonContent(type="object",
+     *     @OA\Property(property="issuer", type="string"),
+     *     @OA\Property(property="authorization_endpoint", type="string"),
+     *     @OA\Property(property="token_endpoint", type="string"),
+     *     @OA\Property(property="jwks_uri", type="string")
+     *   )),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=500, ref="#/components/responses/ServerError")
@@ -85,7 +90,18 @@ class B2CGraphController extends Controller
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\Parameter(name="select", in="query", required=false, description="Comma-separated $select fields", @OA\Schema(type="string"), example="id,displayName,mail,identities"),
-     *   @OA\Response(response=200, description="Raw Graph user JSON", @OA\JsonContent(ref="#/components/schemas/GraphUser")),
+     *   @OA\Response(response=200, description="Raw Graph user JSON", @OA\JsonContent(type="object",
+     *     @OA\Property(property="id", type="string"),
+     *     @OA\Property(property="displayName", type="string"),
+     *     @OA\Property(property="mail", type="string", format="email"),
+     *     @OA\Property(property="accountEnabled", type="boolean"),
+     *     @OA\Property(property="identities", type="array", @OA\Items(type="object",
+     *       required={"signInType","issuer","issuerAssignedId"},
+     *       @OA\Property(property="signInType", type="string"),
+     *       @OA\Property(property="issuer", type="string"),
+     *       @OA\Property(property="issuerAssignedId", type="string", format="email")
+     *     ))
+     *   )),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
@@ -113,7 +129,20 @@ class B2CGraphController extends Controller
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="mail", in="query", required=true, description="Email to filter by", @OA\Schema(type="string", format="email")),
-     *   @OA\Response(response=200, description="Users list", @OA\JsonContent(ref="#/components/schemas/GraphUsersList")),
+     *   @OA\Response(response=200, description="Users list", @OA\JsonContent(type="object",
+     *     @OA\Property(property="value", type="array", @OA\Items(type="object",
+     *       @OA\Property(property="id", type="string"),
+     *       @OA\Property(property="displayName", type="string"),
+     *       @OA\Property(property="mail", type="string", format="email"),
+     *       @OA\Property(property="accountEnabled", type="boolean"),
+     *       @OA\Property(property="identities", type="array", @OA\Items(type="object",
+     *         required={"signInType","issuer","issuerAssignedId"},
+     *         @OA\Property(property="signInType", type="string"),
+     *         @OA\Property(property="issuer", type="string"),
+     *         @OA\Property(property="issuerAssignedId", type="string", format="email")
+     *       ))
+     *     ))
+     *   )),
      *   @OA\Response(response=400, ref="#/components/responses/BadRequest"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
@@ -141,7 +170,16 @@ class B2CGraphController extends Controller
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/GraphAccountEnableRequest")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *       mediaType="application/json",
+     *       @OA\Schema(type="object",
+     *         required={"accountEnable"},
+     *         @OA\Property(property="accountEnable", type="boolean", description="Set false to disable the user")
+     *       )
+     *     )
+     *   ),
      *   @OA\Response(response=204, description="No Content"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
@@ -175,13 +213,26 @@ class B2CGraphController extends Controller
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\RequestBody(required=true, @OA	JsonContent(ref="#/components/schemas/GraphPasswordProfileRequest")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *       mediaType="application/json",
+     *       @OA\Schema(type="object",
+     *         required={"passwordProfile"},
+     *         @OA\Property(property="passwordProfile", type="object",
+     *           required={"password"},
+     *           @OA\Property(property="password", type="string", minLength=8),
+     *           @OA\Property(property="forceChangePasswordNextSignIn", type="boolean")
+     *         )
+     *       )
+     *     )
+     *   ),
      *   @OA\Response(response=204, description="No Content"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
-     *   @OA	Response(response=403, ref="#/components/responses/Forbidden"),
-     *   @OA	Response(response=404, ref="#/components/responses/NotFound"),
-     *   @OA	Response(response=422, ref="#/components/responses/UnprocessableEntity"),
-     *   @OA	Response(response=500, ref="#/components/responses/ServerError")
+     *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
+     *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
+     *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
+     *   @OA\Response(response=500, ref="#/components/responses/ServerError")
      * )
      */
     public function patchGraphUserPassword(string $id, Request $request)
@@ -211,13 +262,27 @@ class B2CGraphController extends Controller
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/GraphEmailIdentitiesRequest")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *       mediaType="application/json",
+     *       @OA\Schema(type="object",
+     *         required={"identities"},
+     *         @OA\Property(property="identities", type="array", minItems=1, @OA\Items(type="object",
+     *           required={"signInType","issuer","issuerAssignedId"},
+     *           @OA\Property(property="signInType", type="string"),
+     *           @OA\Property(property="issuer", type="string"),
+     *           @OA\Property(property="issuerAssignedId", type="string", format="email")
+     *         ))
+     *       )
+     *     )
+     *   ),
      *   @OA\Response(response=204, description="No Content"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
-     *   @OA	Response(response=403, ref="#/components/responses/Forbidden"),
-     *   @OA	Response(response=404, ref="#/components/responses/NotFound"),
-     *   @OA	Response(response=422, ref="#/components/responses/UnprocessableEntity"),
-     *   @OA	Response(response=500, ref="#/components/responses/ServerError")
+     *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
+     *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
+     *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
+     *   @OA\Response(response=500, ref="#/components/responses/ServerError")
      * )
      */
     public function patchGraphUserEmailIdentity(string $id, Request $request)
@@ -253,13 +318,33 @@ class B2CGraphController extends Controller
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/GraphIdentitiesAndPasswordRequest")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *       mediaType="application/json",
+     *       @OA\Schema(type="object",
+     *         required={"mail","identities","passwordProfile"},
+     *         @OA\Property(property="mail", type="string", format="email"),
+     *         @OA\Property(property="identities", type="array", minItems=1, @OA\Items(type="object",
+     *           required={"signInType","issuer","issuerAssignedId"},
+     *           @OA\Property(property="signInType", type="string"),
+     *           @OA\Property(property="issuer", type="string"),
+     *           @OA\Property(property="issuerAssignedId", type="string", format="email")
+     *         )),
+     *         @OA\Property(property="passwordProfile", type="object",
+     *           required={"password"},
+     *           @OA\Property(property="password", type="string"),
+     *           @OA\Property(property="forceChangePasswordNextSignIn", type="boolean")
+     *         )
+     *       )
+     *     )
+     *   ),
      *   @OA\Response(response=204, description="No Content"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
-     *   @OA	Response(response=403, ref="#/components/responses/Forbidden"),
-     *   @OA	Response(response=404, ref="#/components/responses/NotFound"),
-     *   @OA	Response(response=422, ref="#/components/responses/UnprocessableEntity"),
-     *   @OA	Response(response=500, ref="#/components/responses/ServerError")
+     *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
+     *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
+     *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
+     *   @OA\Response(response=500, ref="#/components/responses/ServerError")
      * )
      */
     public function patchGraphUserIdentities(string $id, Request $request)
@@ -303,8 +388,18 @@ class B2CGraphController extends Controller
      *   summary="Create Graph user (pass-through)",
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
-     *   @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/GraphCreateUserRequest")),
-     *   @OA\Response(response=201, description="Created", @OA\JsonContent(ref="#/components/schemas/GraphUserMinimal")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *       mediaType="application/json",
+     *       @OA\Schema(type="object")
+     *     )
+     *   ),
+     *   @OA\Response(response=201, description="Created", @OA\JsonContent(type="object",
+     *     @OA\Property(property="id", type="string"),
+     *     @OA\Property(property="displayName", type="string"),
+     *     @OA\Property(property="mail", type="string", format="email")
+     *   )),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
@@ -372,7 +467,13 @@ class B2CGraphController extends Controller
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\Response(response=200, description="List of phone methods", @OA\JsonContent(ref="#/components/schemas/GraphPhoneMethodsList")),
+     *   @OA\Response(response=200, description="List of phone methods", @OA\JsonContent(type="object",
+     *     @OA\Property(property="value", type="array", @OA\Items(type="object",
+     *       @OA\Property(property="id", type="string"),
+     *       @OA\Property(property="phoneNumber", type="string"),
+     *       @OA\Property(property="phoneType", type="string")
+     *     ))
+     *   )),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
@@ -394,8 +495,22 @@ class B2CGraphController extends Controller
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/GraphPhoneMethodCreateRequest")),
-     *   @OA\Response(response=201, description="Created", @OA\JsonContent(ref="#/components/schemas/GraphPhoneMethod")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *       mediaType="application/json",
+     *       @OA\Schema(type="object",
+     *         required={"phoneNumber","phoneType"},
+     *         @OA\Property(property="phoneNumber", type="string"),
+     *         @OA\Property(property="phoneType", type="string", enum={"mobile","alternateMobile","office"})
+     *       )
+     *     )
+     *   ),
+     *   @OA\Response(response=201, description="Created", @OA\JsonContent(type="object",
+     *     @OA\Property(property="id", type="string"),
+     *     @OA\Property(property="phoneNumber", type="string"),
+     *     @OA\Property(property="phoneType", type="string")
+     *   )),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
@@ -460,7 +575,13 @@ class B2CGraphController extends Controller
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\Response(response=200, description="List of email methods", @OA\JsonContent(ref="#/components/schemas/GraphEmailMethodsList")),
+     *   @OA\Response(response=200, description="List of email methods", @OA\JsonContent(type="object",
+     *     @OA\Property(property="value", type="array", @OA\Items(type="object",
+     *       @OA\Property(property="id", type="string"),
+     *       @OA\Property(property="emailAddress", type="string", format="email"),
+     *       @OA\Property(property="isPrimary", type="boolean")
+     *     ))
+     *   )),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
@@ -482,8 +603,21 @@ class B2CGraphController extends Controller
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\RequestBody(required=true, @OA\JsonContent(ref="#/components/schemas/GraphEmailMethodCreateRequest")),
-     *   @OA\Response(response=201, description="Created", @OA\JsonContent(ref="#/components/schemas/GraphEmailMethod")),
+     *   @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *       mediaType="application/json",
+     *       @OA\Schema(type="object",
+     *         required={"emailAddress"},
+     *         @OA\Property(property="emailAddress", type="string", format="email")
+     *       )
+     *     )
+     *   ),
+     *   @OA\Response(response=201, description="Created", @OA\JsonContent(type="object",
+     *     @OA\Property(property="id", type="string"),
+     *     @OA\Property(property="emailAddress", type="string", format="email"),
+     *     @OA\Property(property="isPrimary", type="boolean")
+     *   )),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
      *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
@@ -548,11 +682,17 @@ class B2CGraphController extends Controller
      *   tags={"Admin Directory"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\Response(response=200, description="List of methods", @OA\JsonContent(ref="#/components/schemas/GraphAuthMethodsList")),
+     *   @OA\Response(response=200, description="List of methods", @OA\JsonContent(type="object",
+     *     @OA\Property(property="value", type="array", @OA\Items(type="object",
+     *       @OA\Property(property="id", type="string"),
+     *       @OA\Property(property="displayName", type="string"),
+     *       @OA\Property(property="@odata.type", type="string")
+     *     ))
+     *   )),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
-     *   @OA	Response(response=404, ref="#/components/responses/NotFound"),
-     *   @OA	Response(response=500, ref="#/components/responses/ServerError")
+     *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
+     *   @OA\Response(response=500, ref="#/components/responses/ServerError")
      * )
      */
     public function listAuthMethods(string $id)
@@ -571,13 +711,24 @@ class B2CGraphController extends Controller
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\Parameter(name="methodId", in="path", required=true, @OA\Schema(type="string")),
-     *   @OA\RequestBody(required=false, @OA\JsonContent(ref="#/components/schemas/GraphResetPasswordRequest")),
-     *   @OA\Response(response=200, description="Password reset result", @OA\JsonContent(ref="#/components/schemas/GraphResetPasswordResult")),
+     *   @OA\RequestBody(
+     *     required=false,
+     *     @OA\MediaType(
+     *       mediaType="application/json",
+     *       @OA\Schema(type="object",
+     *         @OA\Property(property="newPassword", type="string", minLength=8)
+     *       )
+     *     )
+     *   ),
+     *   @OA\Response(response=200, description="Password reset result", @OA\JsonContent(type="object",
+     *     @OA\Property(property="status", type="string"),
+     *     @OA\Property(property="temporaryPassword", type="string", nullable=true)
+     *   )),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
-     *   @OA	Response(response=404, ref="#/components/responses/NotFound"),
-     *   @OA	Response(response=422, ref="#/components/responses/UnprocessableEntity"),
-     *   @OA	Response(response=500, ref="#/components/responses/ServerError")
+     *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
+     *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
+     *   @OA\Response(response=500, ref="#/components/responses/ServerError")
      * )
      */
     public function resetPassword(string $id, string $methodId, Request $request)
@@ -598,9 +749,9 @@ class B2CGraphController extends Controller
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
      *   @OA\Response(response=204, description="No Content"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
-     *   @OA	Response(response=403, ref="#/components/responses/Forbidden"),
-     *   @OA	Response(response=404, ref="#/components/responses/NotFound"),
-     *   @OA	Response(response=500, ref="#/components/responses/ServerError")
+     *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
+     *   @OA\Response(response=404, ref="#/components/responses/NotFound"),
+     *   @OA\Response(response=500, ref="#/components/responses/ServerError")
      * )
      */
     public function deleteGraphUser(string $id)
