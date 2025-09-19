@@ -2,8 +2,13 @@
 
 namespace App\OpenApi;
 
-// Centralized OpenAPI components have moved to GraphSchemas.php for reliable scanning and ordering.
-// This placeholder class remains to keep the file valid and available for future additions if needed.
-
+/**
+ * @OA\SecurityScheme(
+ *   securityScheme="bearerAuth",
+ *   type="http",
+ *   scheme="bearer",
+ *   bearerFormat="JWT",
+ *   description="Enter your bearer token in the format: 'Bearer {token}' (the 'Bearer' prefix is optional in this UI)."
+ * )
+ */
 final class OpenApiComponents {}
-
