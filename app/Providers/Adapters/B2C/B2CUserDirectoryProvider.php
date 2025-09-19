@@ -84,11 +84,12 @@ class B2CUserDirectoryProvider implements UserDirectoryProvider, SupportsUserIde
 
     public function findByEmail(string $email): ?UserProfile
     {
-        $email = mb_strtolower($email);
-
-        // Simple query: filter by mail equals the provided email
-        $filter = rawurlencode("mail eq '{$email}'");
-        $url = 'https://graph.microsoft.com/v1.0/users? $filter=' . $filter;
+        // Build a precise OData filter using case-insensitive comparison
+        $emailLower = mb_strtolower($email);
+        $escaped = str_replace("'", "''", $emailLower); // OData escape single quotes
+        $filter = '$filter=' . rawurlencode("tolower(mail) eq '{$escaped}'");
+        $select = '$select=' . rawurlencode('id,displayName,mail,accountEnabled,givenName,surname');
+        $url = 'https://graph.microsoft.com/v1.0/users?' . $select . '&$top=1&' . $filter; // note: no stray space before $filter
         $res = $this->graph->get($url)->json();
         $u = $res['value'][0] ?? null;
         if (!$u) {
