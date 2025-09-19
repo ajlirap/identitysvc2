@@ -58,8 +58,3 @@ Route::prefix('admin')->group(function () {
     // Admin-safe existence/active check (JWT guarded)
     Route::post('/users/check-active', [UsersController::class, 'adminCheckActive'])->middleware(VerifyJwt::class);
 });
-
-// Public-safe validation
-Route::post('/users/validate-email', [UsersController::class, 'validateEmail'])->middleware('throttle:validate-email');
-Route::post('/users/password-reset/start', [UsersController::class, 'startPasswordReset']);
-Route::post('/users/check-active', [UsersController::class, 'checkActive'])->middleware('throttle:check-active');

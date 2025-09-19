@@ -1,180 +1,3310 @@
 {
-  "openapi": "3.0.3",
-  "info": {
-    "title": "IdentitySvc API",
-    "version": "1.0.0",
-    "description": "Vendor-agnostic identity façade over Azure AD B2C, Auth0, Okta, or Keycloak"
-  },
-  "servers": [
-    { "url": "http://localhost:8000", "description": "Local" }
-  ],
-  "paths": {
-    "/api/auth/login": {
-      "get": {
-        "summary": "Start OIDC login",
-        "responses": {
-          "200": {
-            "description": "Authorize URL",
-            "content": { "application/json": {"schema": {"type": "object", "properties": {"authorize_url": {"type": "string"}}}} }
-          }
-        }
-      }
+    "openapi": "3.0.0",
+    "info": {
+        "title": "IdentitySvc API",
+        "description": "Vendor-agnostic identity facade over Azure AD B2C, Auth0, Okta, or Keycloak.",
+        "version": "1.0.0"
     },
-    "/api/auth/callback": {
-      "get": {
-        "summary": "OIDC callback (auth code exchange)",
-        "parameters": [
-          {"name": "code", "in": "query", "schema": {"type": "string"}, "required": true}
-        ],
-        "responses": {"200": {"description": "Tokens"}}
-      }
-    },
-    "/api/auth/refresh": {
-      "post": {
-        "summary": "Refresh tokens",
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"refresh_token": {"type": "string"}}, "required": ["refresh_token"]}}}},
-        "responses": {"200": {"description": "Tokens"}}
-      }
-    },
-    "/api/me": {
-      "get": {
-        "summary": "Get current user profile",
-        "security": [{"bearerAuth": []}],
-        "responses": {"200": {"description": "User profile"}, "401": {"description": "Unauthorized"}}
-      }
-    },
-    "/api/logout": {
-      "post": {"summary": "Logout (BFF/cleanup)", "responses": {"204": {"description": "No Content"}}}
-    },
-    "/api/admin/users": {
-      "get": {
-        "summary": "List users (admin)",
-        "parameters": [
-          {"name": "q", "in": "query", "required": false, "schema": {"type": "string"}},
-          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}},
-          {"name": "cursor", "in": "query", "required": false, "schema": {"type": "string"}}
-        ],
-        "responses": {
-          "200": {
-            "description": "List of users",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {"type": "string"},
-                          "email": {"type": "string", "format": "email"},
-                          "givenName": {"type": "string", "nullable": true},
-                          "familyName": {"type": "string", "nullable": true},
-                          "displayName": {"type": "string", "nullable": true},
-                          "status": {"type": "string", "enum": ["active", "inactive", "invited"]},
-                          "roles": {"type": "array", "items": {"type": "string"}},
-                          "attributes": {"type": "object"}
+    "paths": {
+        "/api/auth/login": {
+            "get": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Start OIDC login",
+                "description": "Returns an authorization URL (and PKCE challenge when applicable) that the client can use to redirect the user to the upstream identity provider.",
+                "operationId": "33b4e968103a1b9265ea7346c45b3c1d",
+                "parameters": [
+                    {
+                        "name": "pkce",
+                        "in": "query",
+                        "description": "Explicitly enable or disable PKCE for this request (overrides default behavior).",
+                        "required": false,
+                        "schema": {
+                            "type": "boolean"
                         },
-                        "required": ["id", "email", "status"]
-                      }
+                        "example": true
                     },
-                    "nextCursor": {"type": ["string", "null"]}
-                  },
-                  "required": ["items"]
+                    {
+                        "name": "use_pkce",
+                        "in": "query",
+                        "description": "Alias for the pkce parameter.",
+                        "required": false,
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "name": "client_type",
+                        "in": "query",
+                        "description": "Hint used to infer PKCE behavior. Common values: 'spa', 'native', 'server'.",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "spa"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Authorize URL payload",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "authorize_url": {
+                                            "type": "string",
+                                            "example": "https://login.identity.example.com/oauth2/v2.0/authorize?client_id=...&response_type=code&state=..."
+                                        },
+                                        "uses_pkce": {
+                                            "description": "Echo of the resolved PKCE decision for this request",
+                                            "type": "boolean",
+                                            "example": true
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
                 }
-              }
             }
-          }
-        }
-      },
-      "post": {
-        "summary": "Create user (admin)",
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {
-          "email": {"type": "string"},
-          "givenName": {"type": "string"},
-          "familyName": {"type": "string"},
-          "roles": {"type": "array", "items": {"type": "string"}},
-          "attributes": {"type": "object"},
-          "invite": {"type": "boolean"}
-        }, "required": ["email"]}}}},
-        "responses": {"201": {"description": "Created"}}
-      }
-    },
-    "/api/admin/users/{id}": {
-      "get": {
-        "summary": "Get user (admin)",
-        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {"200": {"description": "User"}, "404": {"description": "Not Found"}}
-      }
-    },
-    "/api/admin/users/{id}/deactivate": {
-      "post": {
-        "summary": "Deactivate user (admin)",
-        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {"204": {"description": "No Content"}}
-      }
-    },
-    "/api/admin/users/{id}/activate": {
-      "post": {
-        "summary": "Activate user (admin)",
-        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {"204": {"description": "No Content"}}
-      }
-    },
-    "/api/admin/users/{id}/password-reset": {
-      "post": {
-        "summary": "Admin reset password (admin)",
-        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "responses": {"204": {"description": "No Content"}}
-      }
-    },
-    "/api/users/validate-email": {
-      "post": {
-        "summary": "Validate email format (public)",
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}}}},
-        "responses": {"200": {"description": "Validation result"}}
-      }
-    },
-    "/api/users/password-reset/start": {
-      "post": {
-        "summary": "Start password reset (public)",
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}}}},
-        "responses": {"200": {"description": "Accepted"}}
-      }
-    },
-    "/api/admin/users/invite": {
-      "post": {
-        "summary": "Invite user (admin)",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "email": {"type": "string", "format": "email"},
-                  "givenName": {"type": "string"},
-                  "familyName": {"type": "string"}
+        },
+        "/api/auth/callback": {
+            "get": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "OIDC callback (authorization code exchange)",
+                "description": "Exchanges the authorization code for tokens. If PKCE was used for this 'state', the stored verifier is automatically applied.",
+                "operationId": "9e77cef6c23d0c1e57c30a916d124651",
+                "parameters": [
+                    {
+                        "name": "code",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "state",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OIDC token response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Tokens"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/api/auth/refresh": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Refresh tokens",
+                "description": "Use a refresh token to obtain a fresh access token (and optionally new refresh/id tokens).",
+                "operationId": "b2eae7a8032954d25b46c7ec6f489c68",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "refresh_token"
+                                ],
+                                "properties": {
+                                    "refresh_token": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
                 },
-                "required": ["email"]
-              }
+                "responses": {
+                    "200": {
+                        "description": "OIDC token response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Tokens"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
             }
-          }
+        },
+        "/api/me": {
+            "get": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Get current user profile",
+                "description": "Returns the normalized user profile for the bearer access token supplied in the Authorization header.",
+                "operationId": "9d9bc556f927575aa492a88c28fe5908",
+                "responses": {
+                    "200": {
+                        "description": "User profile",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserProfile"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/logout": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Logout",
+                "description": "Performs local logout (stateless). Returns 204. The client should also sign out from the upstream identity provider if desired.",
+                "operationId": "fe8f3429cd6979b3b4517e186505f9f9",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/api/admin/b2c/openid-configuration": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Get OpenID configuration for the tenant",
+                "operationId": "55a2e028b04c7783828a47da84b6dbbc",
+                "responses": {
+                    "200": {
+                        "description": "OIDC discovery document",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "issuer": {
+                                            "type": "string"
+                                        },
+                                        "authorization_endpoint": {
+                                            "type": "string"
+                                        },
+                                        "token_endpoint": {
+                                            "type": "string"
+                                        },
+                                        "jwks_uri": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Fetch Graph user by id (optional $select)",
+                "operationId": "aafb05edd0886006353506670c13ae40",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "select",
+                        "in": "query",
+                        "description": "Comma-separated $select fields",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "id,displayName,mail,identities"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Raw Graph user JSON",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "displayName": {
+                                            "type": "string"
+                                        },
+                                        "mail": {
+                                            "type": "string",
+                                            "format": "email"
+                                        },
+                                        "accountEnabled": {
+                                            "type": "boolean"
+                                        },
+                                        "identities": {
+                                            "type": "array",
+                                            "items": {
+                                                "required": [
+                                                    "signInType",
+                                                    "issuer",
+                                                    "issuerAssignedId"
+                                                ],
+                                                "properties": {
+                                                    "signInType": {
+                                                        "type": "string"
+                                                    },
+                                                    "issuer": {
+                                                        "type": "string"
+                                                    },
+                                                    "issuerAssignedId": {
+                                                        "type": "string",
+                                                        "format": "email"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Delete Graph user",
+                "operationId": "6248622ea882b00687e4c1e4c2013287",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Enable/Disable user account",
+                "operationId": "4f58d7639798ed7ebff8b01217169104",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "accountEnable"
+                                ],
+                                "properties": {
+                                    "accountEnable": {
+                                        "description": "Set false to disable the user",
+                                        "type": "boolean"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Query Graph users by email",
+                "description": "Pass-through to Microsoft Graph with a filter 'mail eq {email}'.",
+                "operationId": "7b60c022e8ce4df874af7bf2637b2d5a",
+                "parameters": [
+                    {
+                        "name": "mail",
+                        "in": "query",
+                        "description": "Email to filter by",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "email"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Users list",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "value": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "displayName": {
+                                                        "type": "string"
+                                                    },
+                                                    "mail": {
+                                                        "type": "string",
+                                                        "format": "email"
+                                                    },
+                                                    "accountEnabled": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "identities": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "required": [
+                                                                "signInType",
+                                                                "issuer",
+                                                                "issuerAssignedId"
+                                                            ],
+                                                            "properties": {
+                                                                "signInType": {
+                                                                    "type": "string"
+                                                                },
+                                                                "issuer": {
+                                                                    "type": "string"
+                                                                },
+                                                                "issuerAssignedId": {
+                                                                    "type": "string",
+                                                                    "format": "email"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Create Graph user (pass-through)",
+                "operationId": "2c4eb65dae62478b46620174f17a59cb",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "displayName": {
+                                            "type": "string"
+                                        },
+                                        "mail": {
+                                            "type": "string",
+                                            "format": "email"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/password": {
+            "patch": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Update a user's password profile",
+                "operationId": "9a4cd7705e05d242e3010b7aa439e086",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "passwordProfile"
+                                ],
+                                "properties": {
+                                    "passwordProfile": {
+                                        "required": [
+                                            "password"
+                                        ],
+                                        "properties": {
+                                            "password": {
+                                                "type": "string",
+                                                "minLength": 8
+                                            },
+                                            "forceChangePasswordNextSignIn": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/email-identity": {
+            "patch": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Update a user's email sign-in identity",
+                "operationId": "cdb3461810d886bb78c3ad07a8028f33",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "identities"
+                                ],
+                                "properties": {
+                                    "identities": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "signInType",
+                                                "issuer",
+                                                "issuerAssignedId"
+                                            ],
+                                            "properties": {
+                                                "signInType": {
+                                                    "type": "string"
+                                                },
+                                                "issuer": {
+                                                    "type": "string"
+                                                },
+                                                "issuerAssignedId": {
+                                                    "type": "string",
+                                                    "format": "email"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "minItems": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/identities": {
+            "patch": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Update identities and password profile for a user",
+                "operationId": "8ff7ed83a5a011db2643e6f48a3688af",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "mail",
+                                    "identities",
+                                    "passwordProfile"
+                                ],
+                                "properties": {
+                                    "mail": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "identities": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "signInType",
+                                                "issuer",
+                                                "issuerAssignedId"
+                                            ],
+                                            "properties": {
+                                                "signInType": {
+                                                    "type": "string"
+                                                },
+                                                "issuer": {
+                                                    "type": "string"
+                                                },
+                                                "issuerAssignedId": {
+                                                    "type": "string",
+                                                    "format": "email"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "minItems": 1
+                                    },
+                                    "passwordProfile": {
+                                        "required": [
+                                            "password"
+                                        ],
+                                        "properties": {
+                                            "password": {
+                                                "type": "string"
+                                            },
+                                            "forceChangePasswordNextSignIn": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/me/items/{id}/workbook/closeSession": {
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Close Excel workbook session for drive item",
+                "operationId": "29ef6431b45c969f47d8a5c519677ff3",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/authentication/phoneMethods": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "List user phone authentication methods",
+                "operationId": "e36e42dfa282e7c545f9c8ef7f320e21",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of phone methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "value": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "phoneNumber": {
+                                                        "type": "string"
+                                                    },
+                                                    "phoneType": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Add a phone authentication method",
+                "operationId": "8a5e4779ffd3d425adaf8172858599aa",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "phoneNumber",
+                                    "phoneType"
+                                ],
+                                "properties": {
+                                    "phoneNumber": {
+                                        "type": "string"
+                                    },
+                                    "phoneType": {
+                                        "type": "string",
+                                        "enum": [
+                                            "mobile",
+                                            "alternateMobile",
+                                            "office"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "phoneNumber": {
+                                            "type": "string"
+                                        },
+                                        "phoneType": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Delete phone authentication methods (all or by methodId)",
+                "operationId": "122defc46a637606c0f642be88def7ce",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "query",
+                        "description": "Specific method id to delete",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/authentication/emailMethods": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "List user email authentication methods",
+                "operationId": "26bc8a3ae461f3e88d942f396e8cf9e3",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of email methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "value": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "emailAddress": {
+                                                        "type": "string",
+                                                        "format": "email"
+                                                    },
+                                                    "isPrimary": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Add an email authentication method",
+                "operationId": "c1fcd4d38faba0fd4d7c48b51eb5ad8a",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "emailAddress"
+                                ],
+                                "properties": {
+                                    "emailAddress": {
+                                        "type": "string",
+                                        "format": "email"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "emailAddress": {
+                                            "type": "string",
+                                            "format": "email"
+                                        },
+                                        "isPrimary": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Delete email authentication methods (all or by methodId)",
+                "operationId": "f3e8be7b16f0af40f392f769ffcdba16",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "query",
+                        "description": "Specific method id to delete",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/authentication/methods": {
+            "get": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "List all authentication methods",
+                "operationId": "3e8467efeb2ec5e2804b793b401dfca3",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "value": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "displayName": {
+                                                        "type": "string"
+                                                    },
+                                                    "@odata.type": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/users/{id}/authentication/methods/{methodId}/resetPassword": {
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Reset password via specified auth method",
+                "operationId": "a35859695f1b5eea834d4b6d303cd474",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "newPassword": {
+                                        "type": "string",
+                                        "minLength": 8
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Password reset result",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "temporaryPassword": {
+                                            "type": "string",
+                                            "nullable": true
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/b2c/graph/token": {
+            "post": {
+                "tags": [
+                    "Admin Directory"
+                ],
+                "summary": "Get Azure AD B2C Graph access token (client credentials)",
+                "operationId": "6e5b3ac0c778b5db91eb6c77e5bd461e",
+                "responses": {
+                    "200": {
+                        "description": "Access token payload",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Tokens"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/api/admin/users": {
+            "get": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "List users (admin)",
+                "operationId": "44b85c1e3997186839ed21a597143f45",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "description": "Free-text search",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "maximum": 200,
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of users",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/UserProfile"
+                                            }
+                                        },
+                                        "nextCursor": {
+                                            "type": "string",
+                                            "nullable": true
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Create user (admin)",
+                "operationId": "0ecc4f542a146a9fc6aa5647f66cb7e6",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "customerId",
+                                    "firstName",
+                                    "lastName",
+                                    "email"
+                                ],
+                                "properties": {
+                                    "customerId": {
+                                        "type": "string"
+                                    },
+                                    "firstName": {
+                                        "type": "string"
+                                    },
+                                    "lastName": {
+                                        "type": "string"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "isEnable": {
+                                        "type": "boolean",
+                                        "default": true
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "minLength": 8,
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserProfile"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}": {
+            "get": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Get user (admin)",
+                "operationId": "ebf2ffdc76262a0e6cc38ee22ab43980",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserProfile"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Delete user (admin)",
+                "operationId": "d7f03b4c0a20ddd36263cb1dca91e4b7",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/deactivate": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Deactivate user (admin)",
+                "operationId": "1fb93cec95e4601cc13d569b57eab351",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/activate": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Activate user (admin)",
+                "operationId": "c1dbb330c5d52f15e97173ea43cba56d",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/users/validate-email": {
+            "post": {
+                "tags": [
+                    "Public"
+                ],
+                "summary": "Validate email format (public)",
+                "operationId": "e5286078065a6209b32e74485f68ca3e",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "captcha": {
+                                        "type": "string",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Validation result",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "validFormat": {
+                                            "type": "boolean"
+                                        },
+                                        "allowedDomain": {
+                                            "type": "boolean"
+                                        },
+                                        "mxValid": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/api/admin/users/{id}/password-reset": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Admin reset password (admin)",
+                "operationId": "a4d4fb84a28935b99db75f2cb8a82080",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "newPassword"
+                                ],
+                                "properties": {
+                                    "newPassword": {
+                                        "type": "string",
+                                        "minLength": 8
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/password": {
+            "patch": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Update a user's password profile",
+                "operationId": "ee8486633b3fd791dd2f6d6ced44f645",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "passwordProfile"
+                                ],
+                                "properties": {
+                                    "passwordProfile": {
+                                        "required": [
+                                            "password"
+                                        ],
+                                        "properties": {
+                                            "password": {
+                                                "type": "string",
+                                                "minLength": 8
+                                            },
+                                            "forceChangePasswordNextSignIn": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/email-identity": {
+            "patch": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Replace email sign-in identities",
+                "operationId": "cb5be8ce83398280fc91a4303ecaaba4",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "identities"
+                                ],
+                                "properties": {
+                                    "identities": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "signInType",
+                                                "issuer",
+                                                "issuerAssignedId"
+                                            ],
+                                            "properties": {
+                                                "signInType": {
+                                                    "type": "string"
+                                                },
+                                                "issuer": {
+                                                    "type": "string"
+                                                },
+                                                "issuerAssignedId": {
+                                                    "type": "string",
+                                                    "format": "email"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "minItems": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/identities": {
+            "patch": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Replace identities and password profile",
+                "operationId": "05324f155bd5ccdeed20f7a7a1db31cb",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "mail",
+                                    "identities",
+                                    "passwordProfile"
+                                ],
+                                "properties": {
+                                    "mail": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "identities": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "signInType",
+                                                "issuer",
+                                                "issuerAssignedId"
+                                            ],
+                                            "properties": {
+                                                "signInType": {
+                                                    "type": "string"
+                                                },
+                                                "issuer": {
+                                                    "type": "string"
+                                                },
+                                                "issuerAssignedId": {
+                                                    "type": "string",
+                                                    "format": "email"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "minItems": 1
+                                    },
+                                    "passwordProfile": {
+                                        "required": [
+                                            "password"
+                                        ],
+                                        "properties": {
+                                            "password": {
+                                                "type": "string"
+                                            },
+                                            "forceChangePasswordNextSignIn": {
+                                                "type": "boolean"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/authentication/phone-methods": {
+            "get": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "List phone authentication methods",
+                "operationId": "b4c1269245fba9e28c951a7bd7482e33",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Phone methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Add phone authentication method",
+                "operationId": "bcb9decc3ec2e9132961ff3d1aca27c6",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "phoneNumber",
+                                    "phoneType"
+                                ],
+                                "properties": {
+                                    "phoneNumber": {
+                                        "type": "string"
+                                    },
+                                    "phoneType": {
+                                        "type": "string",
+                                        "enum": [
+                                            "mobile",
+                                            "alternateMobile",
+                                            "office"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Delete phone authentication methods",
+                "operationId": "6b6098151fbf2a6d63fc32af28b8ced4",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "query",
+                        "description": "If omitted, deletes all",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/authentication/email-methods": {
+            "get": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "List email authentication methods",
+                "operationId": "c1f60c098150e93406c84117bbf696ec",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Email methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Add email authentication method",
+                "operationId": "d30a089c8882a94fb1792d7d2b9ecbfb",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "emailAddress"
+                                ],
+                                "properties": {
+                                    "emailAddress": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "user@contoso.com"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Delete email authentication methods",
+                "operationId": "df2436b6adb3c114436091872969a7fd",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "query",
+                        "description": "If omitted, deletes all",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/authentication/methods": {
+            "get": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "List authentication methods",
+                "operationId": "5f56f4b024ca7637f2211bb4c877a639",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Authentication methods",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/{id}/authentication/methods/{methodId}/reset-password": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Reset password via authentication method",
+                "operationId": "c3b2e926dd32395ce3a46c487d69898d",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "methodId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "newPassword": {
+                                        "type": "string",
+                                        "minLength": 8
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Password reset result",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/users/check-active": {
+            "post": {
+                "tags": [
+                    "Public"
+                ],
+                "summary": "Public-safe eligibility check (non-enumerating)",
+                "operationId": "500146e687a4fa0a5468204d0f47beb1",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "captcha": {
+                                        "type": "string",
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Generic eligibility without revealing account existence",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "eligible": {
+                                            "type": "boolean"
+                                        },
+                                        "validFormat": {
+                                            "type": "boolean"
+                                        },
+                                        "allowedDomain": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "exists": {
+                                            "type": "boolean",
+                                            "nullable": true
+                                        },
+                                        "active": {
+                                            "type": "boolean",
+                                            "nullable": true
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/api/admin/users/check-active": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Admin: Check if email exists and if user is active",
+                "operationId": "92a42414efd930f2e9ea6867c2550cbb",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Exists/active and optional user",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "exists": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "active": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "user": {
+                                            "oneOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/UserProfile"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/users/invite": {
+            "post": {
+                "tags": [
+                    "Admin Users"
+                ],
+                "summary": "Invite user (admin)",
+                "operationId": "20c1c92ee53bf5c7e7a7073ffffbddbd",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "customerId",
+                                    "firstName",
+                                    "lastName",
+                                    "email"
+                                ],
+                                "properties": {
+                                    "customerId": {
+                                        "type": "string"
+                                    },
+                                    "firstName": {
+                                        "type": "string"
+                                    },
+                                    "lastName": {
+                                        "type": "string"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "isEnable": {
+                                        "type": "boolean",
+                                        "default": true
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "minLength": 8,
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "Invitation accepted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string"
+                                        },
+                                        "details": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/UnprocessableEntity"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Tokens": {
+                "required": [
+                    "expiresIn"
+                ],
+                "properties": {
+                    "accessToken": {
+                        "description": "Access token issued by the identity provider",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "refreshToken": {
+                        "description": "Refresh token that can be used to obtain new access tokens",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "expiresIn": {
+                        "description": "Lifetime of the access token in seconds",
+                        "type": "integer",
+                        "example": 3600
+                    },
+                    "idToken": {
+                        "description": "ID token (when available)",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "tokenType": {
+                        "description": "Token type as reported by the provider",
+                        "type": "string",
+                        "example": "Bearer",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "UserProfile": {
+                "required": [
+                    "id",
+                    "email",
+                    "status"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email"
+                    },
+                    "givenName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "familyName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "displayName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "active",
+                            "inactive",
+                            "invited"
+                        ]
+                    },
+                    "roles": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "attributes": {
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "GraphAccountEnableRequest": {
+                "required": [
+                    "accountEnable"
+                ],
+                "properties": {
+                    "accountEnable": {
+                        "description": "Set false to disable the user",
+                        "type": "boolean",
+                        "example": false
+                    }
+                },
+                "type": "object"
+            }
         },
         "responses": {
-          "202": {"description": "Invitation accepted"}
+            "BadRequest": {
+                "description": "Bad Request",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "Unauthorized": {
+                "description": "Unauthorized",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "Forbidden": {
+                "description": "Forbidden",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "NotFound": {
+                "description": "Not Found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "UnprocessableEntity": {
+                "description": "Validation failed",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "errors": {
+                                    "type": "object"
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "TooManyRequests": {
+                "description": "Too Many Requests",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "ServerError": {
+                "description": "Server Error",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "properties": {
+                                "message": {
+                                    "type": "string"
+                                },
+                                "details": {
+                                    "type": "object",
+                                    "nullable": true
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                }
+            }
         }
-      }
-    }
-  },
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
-    }
-  }
+    },
+    "tags": [
+        {
+            "name": "Auth",
+            "description": "Auth"
+        },
+        {
+            "name": "Admin Directory",
+            "description": "Admin Directory"
+        },
+        {
+            "name": "Admin Users",
+            "description": "Admin Users"
+        },
+        {
+            "name": "Public",
+            "description": "Public"
+        }
+    ]
 }

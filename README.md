@@ -100,7 +100,7 @@ Endpoints
 - POST /api/admin/users               -> create user (admin)
 - POST /api/admin/users/invite        -> invite user (admin)
 - POST /api/admin/users/{id}/deactivate
-- POST /api/users/password-reset/start
+- POST /api/admin/users/{id}/password-reset  (body: { newPassword })
 - POST /api/users/validate-email     -> public email format/domain check (non-enumerating; optional CAPTCHA)
 - POST /api/users/check-active       -> public-safe eligibility (non-enumerating; optional CAPTCHA)
   - Optional: set `EMAIL_REVEAL_EXISTENCE=true` to include `{ exists, active }` in the response and make `eligible` require an active account. Use with care to avoid user enumeration.

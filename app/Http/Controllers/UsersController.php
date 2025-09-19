@@ -45,7 +45,15 @@ class UsersController extends Controller
      *   summary="Create user (admin)",
      *   tags={"Admin Users"},
      *   security={{"bearerAuth":{}}},
-     *   
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"customerId","firstName","lastName","email"},
+     *     @OA\Property(property="customerId", type="string"),
+     *     @OA\Property(property="firstName", type="string"),
+     *     @OA\Property(property="lastName", type="string"),
+     *     @OA\Property(property="email", type="string", format="email"),
+     *     @OA\Property(property="isEnable", type="boolean", default=true),
+     *     @OA\Property(property="password", type="string", minLength=8, nullable=true)
+     *   )),
      *   @OA\Response(response=201, description="Created", @OA\JsonContent(ref="#/components/schemas/UserProfile")),
      *   @OA\Response(response=400, ref="#/components/responses/BadRequest"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
@@ -62,7 +70,12 @@ class UsersController extends Controller
             'lastName' => ['required', 'string'],
             'email' => ['required', 'string', 'email'],
             'isEnable' => ['sometimes', 'boolean'],
+            'password' => ['sometimes', 'string', 'min:8'],
         ]);
+
+        $password = array_key_exists('password', $data)
+            ? (string) $data['password']
+            : bin2hex(random_bytes(16));
 
         $dto = new UserCreateRequest(
             customerId: (string) $data['customerId'],
@@ -70,7 +83,7 @@ class UsersController extends Controller
             lastName: (string) $data['lastName'],
             email: mb_strtolower((string) $data['email']),
             isEnable: array_key_exists('isEnable', $data) ? (bool) $data['isEnable'] : true,
-            password: bin2hex((string)$data['password']) // generate a random password; user should reset
+            password: $password
         );
 
         $user = ProviderFactory::directory()->create($dto);
@@ -199,29 +212,7 @@ class UsersController extends Controller
         ]);
     }
 
-    /**
-     * @OA\Post(
-     *   path="/api/users/password-reset/start",
-     *   summary="Start password reset (public)",
-     *   tags={"Public"},
-     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
-     *     required={"email"},
-     *     @OA\Property(property="email", type="string", format="email")
-     *   )),
-     *   @OA\Response(response=200, description="Accepted", @OA\JsonContent(type="object",
-     *     @OA\Property(property="status", type="string", example="If the account exists, an email was sent.")
-     *   )),
-     *   @OA\Response(response=400, ref="#/components/responses/BadRequest"),
-     *   @OA\Response(response=422, ref="#/components/responses/UnprocessableEntity"),
-     *   @OA\Response(response=500, ref="#/components/responses/ServerError")
-     * )
-     */
-    public function startPasswordReset(Request $request)
-    {
-        $email = (string) $request->string('email');
-        ProviderFactory::directory()->startPasswordResetPublic($email);
-        return response()->json(['status' => 'If the account exists, an email was sent.']);
-    }
+    
 
     /**
      * @OA\Post(
@@ -230,6 +221,10 @@ class UsersController extends Controller
      *   tags={"Admin Users"},
      *   security={{"bearerAuth":{}}},
      *   @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="string")),
+     *   @OA\RequestBody(required=true, @OA\JsonContent(type="object",
+     *     required={"newPassword"},
+     *     @OA\Property(property="newPassword", type="string", minLength=8)
+     *   )),
      *   @OA\Response(response=204, description="No Content"),
      *   @OA\Response(response=401, ref="#/components/responses/Unauthorized"),
      *   @OA\Response(response=403, ref="#/components/responses/Forbidden"),
@@ -237,9 +232,24 @@ class UsersController extends Controller
      *   @OA\Response(response=500, ref="#/components/responses/ServerError")
      * )
      */
-    public function adminReset(string $id)
+    public function adminReset(string $id, Request $request)
     {
-        ProviderFactory::directory()->adminResetPassword($id);
+        $data = $request->validate([
+            'newPassword' => ['required', 'string', 'min:8'],
+        ]);
+
+        $dir = ProviderFactory::directory();
+
+        if ($dir instanceof SupportsUserIdentityManagement) {
+            $dir->updatePasswordProfile($id, [
+                'password' => $data['newPassword'],
+                'forceChangePasswordNextSignIn' => false,
+            ]);
+            return response()->noContent();
+        }
+
+        // Fallback for providers without granular password update support
+        $dir->adminResetPassword($id);
         return response()->noContent();
     }
 

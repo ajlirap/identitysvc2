@@ -1590,6 +1590,46 @@
                 ],
                 "summary": "Create user (admin)",
                 "operationId": "0ecc4f542a146a9fc6aa5647f66cb7e6",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "customerId",
+                                    "firstName",
+                                    "lastName",
+                                    "email"
+                                ],
+                                "properties": {
+                                    "customerId": {
+                                        "type": "string"
+                                    },
+                                    "firstName": {
+                                        "type": "string"
+                                    },
+                                    "lastName": {
+                                        "type": "string"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email"
+                                    },
+                                    "isEnable": {
+                                        "type": "boolean",
+                                        "default": true
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "minLength": 8,
+                                        "nullable": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "201": {
                         "description": "Created",
@@ -1857,61 +1897,6 @@
                 }
             }
         },
-        "/api/users/password-reset/start": {
-            "post": {
-                "tags": [
-                    "Public"
-                ],
-                "summary": "Start password reset (public)",
-                "operationId": "efd8f423c376eb27368d8639c7120b2b",
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "required": [
-                                    "email"
-                                ],
-                                "properties": {
-                                    "email": {
-                                        "type": "string",
-                                        "format": "email"
-                                    }
-                                },
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Accepted",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "status": {
-                                            "type": "string",
-                                            "example": "If the account exists, an email was sent."
-                                        }
-                                    },
-                                    "type": "object"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "$ref": "#/components/responses/BadRequest"
-                    },
-                    "422": {
-                        "$ref": "#/components/responses/UnprocessableEntity"
-                    },
-                    "500": {
-                        "$ref": "#/components/responses/ServerError"
-                    }
-                }
-            }
-        },
         "/api/admin/users/{id}/password-reset": {
             "post": {
                 "tags": [
@@ -1929,6 +1914,25 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "newPassword"
+                                ],
+                                "properties": {
+                                    "newPassword": {
+                                        "type": "string",
+                                        "minLength": 8
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "204": {
                         "description": "No Content"
