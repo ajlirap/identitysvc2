@@ -88,8 +88,7 @@ class B2CUserDirectoryProvider implements UserDirectoryProvider, SupportsUserIde
 
         // Simple query: filter by mail equals the provided email
         $filter = rawurlencode("mail eq '{$email}'");
-        $select = '$select=' . rawurlencode('id,displayName,mail,accountEnabled,givenName,surname');
-        $url = 'https://graph.microsoft.com/v1.0/users?' . $select . '&$top=1&$filter=' . $filter;
+        $url = 'https://graph.microsoft.com/v1.0/users? $filter=' . $filter;
         $res = $this->graph->get($url)->json();
         $u = $res['value'][0] ?? null;
         if (!$u) {
@@ -106,7 +105,7 @@ class B2CUserDirectoryProvider implements UserDirectoryProvider, SupportsUserIde
             displayName: (string) ($u['displayName'] ?? $resolvedEmail),
             status: ($u['accountEnabled'] ?? true) ? 'active' : 'inactive',
             roles: [],
-            attributes: [ 'raw' => $u ],
+            attributes: ['raw' => $u],
         );
     }
 
