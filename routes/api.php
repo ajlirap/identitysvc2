@@ -38,8 +38,9 @@ Route::prefix('admin')->group(function () {
     }
     Route::get('/users', [UsersController::class, 'index']);
     Route::post('/users', [UsersController::class, 'create']);
-    Route::get('/users/{id}', [UsersController::class, 'get']);
+    // Place fixed routes before parameterized ones to avoid conflicts
     Route::get('/users/by-email', [UsersController::class, 'getByEmail']);
+    Route::get('/users/{id}', [UsersController::class, 'get']);
     Route::delete('/users/{id}', [UsersController::class, 'delete']);
     Route::post('/users/{id}/deactivate', [UsersController::class, 'deactivate']);
     Route::post('/users/{id}/activate', [UsersController::class, 'activate']);
