@@ -85,8 +85,9 @@ class B2CUserDirectoryProvider implements UserDirectoryProvider, SupportsUserIde
     public function findByEmail(string $email): ?UserProfile
     {
         $email = mb_strtolower($email);
+        // Use a resilient filter that does not depend on issuer variations (tenant vs domain)
         $filter = rawurlencode(
-            "identities/any(c:c/issuerAssignedId eq '{$email}' and c/issuer eq '" . config('identity.b2c.tenant') . "')"
+            "identities/any(c:c/issuerAssignedId eq '{$email}' and c/signInType eq 'emailAddress')"
         );
         $res = $this->graph
             ->get('https://graph.microsoft.com/v1.0/users?$filter=' . $filter . '&$select=id,displayName,identities,accountEnabled,givenName,surname,employeeId')
