@@ -97,9 +97,9 @@ class AuthControllerTest extends TestCase
     public function test_me_returns_profile_with_valid_jwt(): void
     {
         // Mock JwtValidator to bypass real signature checking
-        $this->app->instance(JwtValidator::class, new class {
-            public function validate($jwt, $iss, $aud, $jwks, $leeway) { return ['sub' => 'user1']; }
-        });
+        $validator = \Mockery::mock(JwtValidator::class);
+        $validator->shouldReceive('validate')->andReturn(['sub' => 'user1']);
+        $this->app->instance(JwtValidator::class, $validator);
 
         /** @var IdentityProvider $idp */
         $idp = $this->app->make(B2CIdentityProvider::class);
@@ -121,4 +121,3 @@ class AuthControllerTest extends TestCase
         $this->postJson('/api/logout')->assertNoContent();
     }
 }
-

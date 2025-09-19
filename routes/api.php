@@ -13,6 +13,10 @@ Route::post('/auth/refresh', [AuthController::class, 'refresh']);
 Route::get('/me', [AuthController::class, 'me'])->middleware(VerifyJwt::class);
 Route::post('/logout', [AuthController::class, 'logout']);
 
+// Public-safe validation
+Route::post('/users/validate-email', [UsersController::class, 'validateEmail'])->middleware('throttle:validate-email');
+Route::post('/users/check-active', [UsersController::class, 'checkActive'])->middleware('throttle:check-active');
+
 // User lifecycle (protect with your admin auth e.g., mTLS or internal auth)
 Route::prefix('admin')->group(function () {
     if ((string) config('identity.vendor') === 'b2c' && (bool) config('identity.b2c.enable_raw_routes')) {

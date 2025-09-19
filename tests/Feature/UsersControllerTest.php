@@ -217,21 +217,24 @@ class UsersControllerTest extends TestCase
 
     public function test_admin_check_active_requires_admin_role_and_valid_email(): void
     {
-        // Invalid email -> 400
-        $this->postJson('/api/admin/users/check-active', ['email' => 'bad'])
+        // Invalid email -> 400 (supply Authorization to pass middleware)
+        $validator = \Mockery::mock(JwtValidator::class);
+        $validator->shouldReceive('validate')->andReturn(['roles' => []]);
+        $this->app->instance(JwtValidator::class, $validator);
+        $this->postJson('/api/admin/users/check-active', ['email' => 'bad'], ['Authorization' => 'Bearer t'])
             ->assertStatus(400);
 
         // Mock JwtValidator and IDP metadata
-        $this->app->instance(JwtValidator::class, new class {
-            public function validate($jwt, $iss, $aud, $jwks, $leeway) { return ['roles' => []]; }
-        });
         // Authorization header but no admin role -> 403
+        $validator = \Mockery::mock(JwtValidator::class);
+        $validator->shouldReceive('validate')->andReturn(['roles' => []]);
+        $this->app->instance(JwtValidator::class, $validator);
         $this->postJson('/api/admin/users/check-active', ['email' => 'a@b.com'], [ 'Authorization' => 'Bearer t' ])->assertStatus(403);
 
         // With admin role -> 200 and payload
-        $this->app->instance(JwtValidator::class, new class {
-            public function validate($jwt, $iss, $aud, $jwks, $leeway) { return ['roles' => ['idp.admin']]; }
-        });
+        $validator = \Mockery::mock(JwtValidator::class);
+        $validator->shouldReceive('validate')->andReturn(['roles' => ['idp.admin']]);
+        $this->app->instance(JwtValidator::class, $validator);
         /** @var UserDirectoryProvider $dir */
         $dir = $this->app->make(B2CUserDirectoryProvider::class);
         $dir->shouldReceive('findByEmail')->once()->with('a@b.com')->andReturn(new UserProfile(id: 'u1', email: 'a@b.com', status: 'inactive'));

@@ -52,13 +52,12 @@ class B2CGraphControllerTest extends TestCase
 
     public function test_list_phone_methods_uses_http_fake(): void
     {
-        // GraphClient::accessToken is used in controller method variants; fake token exchange + list call
+        // GraphClient::accessToken uses discovery + token; then controller calls Graph
         Http::fake([
-            '*' => Http::response(['access_token' => 'tok'], 200),
-        ]);
-
-        // Force downstream list call to return a value payload
-        Http::fake([
+            'https://login.microsoftonline.com/*/.well-known/openid-configuration' => Http::response([
+                'token_endpoint' => 'https://login.microsoftonline.com/contoso/oauth2/v2.0/token',
+            ], 200),
+            'https://login.microsoftonline.com/*/oauth2/*/token' => Http::response(['access_token' => 'tok'], 200),
             'https://graph.microsoft.com/*/authentication/phoneMethods' => Http::response(['value' => [['id' => 'p1']]], 200),
         ]);
 
@@ -66,4 +65,3 @@ class B2CGraphControllerTest extends TestCase
             ->assertOk()->assertJsonPath('value.0.id', 'p1');
     }
 }
-
